@@ -5,14 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha",
-    "test-ownable": "mocha --grep ownable",
-    "test-fundable": "mocha --grep fundable",
-    "test-lockable": "mocha --grep lockable",
-    "test-stakeable": "mocha --grep stakeable",
-    "test-upgradeable": "mocha --grep upgradeable",
-    "test-airdrop": "mocha --grep airdrop",
-    "test-staking": "mocha --grep staking",
-    "test-compensation": "mocha --grep compensation",
+    "test-slot": "mocha --grep slotmac",
+    "test-bank": "mocha --grep bankman",
+    "test-spin": "mocha --grep spinman",
+    "test-ybt": "mocha --grep ybt",
     "start": "node index.js"
   },
   "author": "",
@@ -27,7 +23,7 @@
     "csv-parser": "^3.0.0",
     "dotenv": "^16.4.5",
     "moment": "^2.30.1",
-    "ulujs": "^0.11.12"
+    "ulujs": "^0.11.17"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

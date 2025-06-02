@@ -5,7 +5,7 @@ generate_clients() {
     --out-dir /artifacts \
     /src/src/contract.py 
   local artifact
-  local artifacts=("HelloWorld")
+  local artifacts=("BankManger" "SpinManager" "ReelManager" "SlotMachine" "Beacon" "YieldBearingToken")
   for artifact in "${artifacts[@]}"; do
     algokit generate client "/artifacts/${artifact}.arc32.json" \
       --version 3.0.0 \
