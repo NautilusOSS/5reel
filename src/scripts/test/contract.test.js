@@ -547,7 +547,7 @@ describe("slotmac: Slot Machine Testing", function () {
       amount: 1 * 1e6,
       ...acc,
     });
-    expect(withdrawR).to.be.false;
+    expect(withdrawR.success).to.be.false;
   });
   it("Should bank with ybt", async function () {
     await withYBT();

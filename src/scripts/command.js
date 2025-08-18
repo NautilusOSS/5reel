@@ -53,15 +53,15 @@ export const sks = {
     deployer: sk,
 };
 // DEVNET
-// const ALGO_SERVER = "http://localhost";
-// const ALGO_PORT = 4001;
-// const ALGO_INDEXER_SERVER = "http://localhost";
-// const ALGO_INDEXER_PORT = 8980;
+const ALGO_SERVER = "http://localhost";
+const ALGO_PORT = 4001;
+const ALGO_INDEXER_SERVER = "http://localhost";
+const ALGO_INDEXER_PORT = 8980;
 // TESTNET
-const ALGO_SERVER = "https://testnet-api.voi.nodely.dev";
-const ALGO_INDEXER_SERVER = "https://testnet-idx.voi.nodely.dev";
-const ALGO_PORT = 443;
-const ALGO_INDEXER_PORT = 443;
+// const ALGO_SERVER = "https://testnet-api.voi.nodely.dev";
+// const ALGO_INDEXER_SERVER = "https://testnet-idx.voi.nodely.dev";
+// const ALGO_PORT = 443;
+// const ALGO_INDEXER_PORT = 443;
 // MAINNET
 // const ALGO_SERVER = "https://mainnet-api.voi.nodely.dev";
 // const ALGO_INDEXER_SERVER = "https://mainnet-idx.voi.nodely.dev";
@@ -85,6 +85,10 @@ const signSendAndConfirm = async (txns, sk) => {
         .do();
     console.log(res);
     return await Promise.all(stxns.map((res) => algosdk.waitForConfirmation(algodClient, res.txID, 4)));
+};
+export const getAccount = async () => {
+    const acc = algosdk.generateAccount();
+    return acc;
 };
 export const fund = async (addr, amount) => {
     console.log("funding", addr, amount);
@@ -572,9 +576,8 @@ export const deposit = async (options) => {
         if (!options.simulate) {
             await signSendAndConfirm(depositR.txns, sk);
         }
-        return true;
     }
-    return false;
+    return depositR;
 };
 export const withdraw = async (options) => {
     if (options.debug) {
@@ -593,9 +596,8 @@ export const withdraw = async (options) => {
         if (!options.simulate) {
             await signSendAndConfirm(withdrawR.txns, sk);
         }
-        return true;
     }
-    return false;
+    return withdrawR;
 };
 export const bootstrap = async (options) => {
     if (options.debug) {
@@ -699,9 +701,8 @@ export const ybtDeposit = async (options) => {
         if (!options.simulate) {
             await signSendAndConfirm(ybt_depositR.txns, sk);
         }
-        return true;
     }
-    return false;
+    return ybt_depositR;
 };
 program
     .command("ybt-deposit")
@@ -736,9 +737,8 @@ export const ybtWithdraw = async (options) => {
         if (!options.simulate) {
             await signSendAndConfirm(ybt_withdrawR.txns, sk);
         }
-        return true;
     }
-    return false;
+    return ybt_withdrawR;
 };
 program
     .command("ybt-withdraw")
@@ -869,3 +869,46 @@ program
         console.log("Failed to transfer ownership");
     }
 });
+export const payment = async (options) => {
+    const addr = options.sender || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const suggestedParams = await algodClient.getTransactionParams().do();
+    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        from: addr,
+        to: options.to,
+        amount: options.amount,
+        suggestedParams,
+    });
+    const stxn = algosdk.signTransaction(txn, sk);
+    const txid = await algodClient.sendRawTransaction(stxn.blob).do();
+    console.log("txid", txid);
+    return txid;
+};
+program
+    .command("pay")
+    .option("-s, --sender <string>", "Specify sender")
+    .option("-a, --amount <number>", "Specify amount")
+    .option("-t, --to <string>", "Specify to")
+    .option("--debug", "Debug the payout", false)
+    .option("--simulate", "Simulate the payout", false)
+    .action(async (options) => {
+    const success = await payment({
+        ...options,
+        sender: options.sender || addressses.deployer,
+        sk: sks.deployer,
+        amount: Number(options.amount),
+        to: options.to,
+    });
+    if (!success) {
+        console.log("Failed to pay");
+    }
+});
+export const arc200TotalSupply = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    const totalSupplyR = await ci.arc200_totalSupply();
+    return totalSupplyR.returnValue;
+};

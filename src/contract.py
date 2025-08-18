@@ -19,8 +19,12 @@ from algopy import (
     subroutine,
     urange,
 )
-from opensubmarine import Upgradeable
-from opensubmarine import Stakeable, ARC200Token, arc200_Transfer
+from opensubmarine import (
+    ARC200Token,
+    Stakeable,
+    Upgradeable,
+    arc200_Transfer,
+)
 from opensubmarine.utils.algorand import require_payment
 
 
@@ -971,9 +975,9 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         ), "extra payment must be less than max extra payment"
         # bank assertions
         # lock spin if balance total is less than min bank amount
-        # assert (
-        #     self._get_balance_total() >= self._get_min_bank_amount()
-        # ), "balance total must be greater than min bank amount"
+        assert (
+            self._get_balance_total() >= self._get_min_bank_amount()
+        ), "balance total must be greater than min bank amount"
         # Update balance tracking
         #   Add bet amount to total balance
         # assert max payline index is less than max index
@@ -1699,14 +1703,6 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
 
     @arc4.abimethod
     def deposit(self) -> arc4.UInt256:
-        """
-        Deposit funds into the contract
-
-        Args:
-            amount: Amount of funds to deposit
-        Returns:
-            The number of shares minted
-        """
         # Validate inputs
         assert self.yield_bearing_source > 0, "yield bearing source not set"
 
@@ -1717,13 +1713,15 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         deposit_amount = (
             payment if self._balanceOf(Txn.sender) > 0 else payment - balance_box_cost
         )
-        assert (
-            deposit_amount > 0
-        ), "deposit amount must be greater than 0"  # impossible because of assert above
+        assert deposit_amount > 0, "deposit amount must be greater than 0"
+
+        # 🔑 KEY FIX: Query balance BEFORE forwarding deposit
+        total_assets = self._get_yield_bearing_source_balance()
 
         # Forward to yield source
         app = Application(self.yield_bearing_source)
         itxn.Payment(receiver=app.address, amount=deposit_amount).submit()
+
         # Call owner_deposit (ensure this contract is owner)
         arc4.abi_call(
             SlotMachine.owner_deposit,
@@ -1731,8 +1729,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
             app_id=app,
         )
 
-        # Mint shares
-        return arc4.UInt256(self._mint(BigUInt(deposit_amount)))
+        # Mint shares based on PRIOR balance (not inflated balance)
+        return arc4.UInt256(self._mint(BigUInt(deposit_amount), total_assets))
 
     @arc4.abimethod
     def deposit_cost(self) -> arc4.UInt64:
@@ -1743,28 +1741,21 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         return UInt64(28500)
 
     @subroutine
-    def _mint(self, amount: BigUInt) -> BigUInt:
+    def _mint(self, amount: BigUInt, prior_balance: UInt64) -> BigUInt:
         """
-        Mint tokens (shares) based on the proportion of assets being deposited
-
-        Args:
-            amount: The amount of assets being deposited
-        Returns:
-            BigUInt: The number of shares minted
-        Raises:
-            AssertionError: If deposit would result in 0 shares
+        Mint tokens based on prior balance (before deposit was forwarded)
         """
-        total_assets = BigUInt(self._get_yield_bearing_source_balance())
-
         if self.totalSupply == 0:
             shares = amount
         else:
-            shares = (amount * self.totalSupply) // total_assets
+            # Use prior_balance instead of querying current balance
+            shares = (amount * self.totalSupply) // BigUInt(prior_balance)
 
         # Ensure minimum shares are minted to prevent dust deposits
         assert shares > 0, "Deposit amount too small"
         self.totalSupply += shares
         self.balances[Txn.sender] = self._balanceOf(Txn.sender) + shares
+
         arc4.emit(
             arc200_Transfer(
                 arc4.Address(Global.zero_address),

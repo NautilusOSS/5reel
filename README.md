@@ -48,7 +48,7 @@ From there you can fund your testing account with tokens via the interface.
 
 Update `command.ts` to match contract name(s). This file is a helper to deploy your compiled contracts to the network set in the file itself.
 
-1. Set your mnemonic in the `acc` variable.
+1. Set your mnemonic in the `src/scripts/.env` file.
 2. Update the import statement starting on line 2 for your contract.
 3. DeployType to match your contract name(s).
   - E.g. type DeployType = "HelloWorld";
