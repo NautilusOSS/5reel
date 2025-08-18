@@ -1601,6 +1601,9 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         Post upgrade
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
+        # HoVHouseAlpha1
+        self.name = String("HoVHouseAlpha1")
+        self.symbol = String("HOVA1")
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1609,8 +1612,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         """
         self._only_owner()
         assert self.bootstrap_active == bool(), "bootstrap is not active"
-        self.name = String("Submarine Gaming Token")
-        self.symbol = String("GAME")
+        self.name = String("HoVHouse")
+        self.symbol = String("HOV")
         self.decimals = UInt64(9)
         self.totalSupply = BigUInt(0)
         self.bootstrap_active = True

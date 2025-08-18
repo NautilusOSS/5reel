@@ -112,6 +112,15 @@ export const indexerClient = new algosdk.Indexer(
   indexerServerPort
 );
 
+const makeSpec = (methods: any) => {
+  return {
+    name: "",
+    desc: "",
+    methods,
+    events: [],
+  };
+};
+
 const signSendAndConfirm = async (txns: string[], sk: any) => {
   const stxns = txns
     .map((t) => new Uint8Array(Buffer.from(t, "base64")))
@@ -1317,3 +1326,48 @@ export const arc200TotalSupply: any = async (
   const totalSupplyR = await ci.arc200_totalSupply();
   return totalSupplyR.returnValue;
 };
+
+// upgrade
+
+interface PostUpdateOptions {
+  apid: number;
+  simulate?: boolean;
+  debug?: boolean;
+}
+
+export const arc200PostUpdate: any = async (options: PostUpdateOptions) => {
+  const ci = new CONTRACT(
+    Number(options.apid),
+    algodClient,
+    indexerClient,
+    makeSpec(YieldBearingTokenAppSpec.contract.methods),
+    {
+      addr: addr,
+      sk: sk,
+    }
+  );
+  ci.setFee(2000);
+  const postUpdateR = await ci.post_update();
+  if (options.debug) {
+    console.log(postUpdateR);
+  }
+  if (postUpdateR.success) {
+    if (!options.simulate) {
+      await signSendAndConfirm(postUpdateR.txns, sk);
+    }
+  }
+  return postUpdateR.success;
+};
+
+program
+  .command("post-update")
+  .description("Post update the arc200 token")
+  .requiredOption("-a, --apid <number>", "Specify the application ID")
+  .option("-s, --simulate", "Simulate the post update", false)
+  .option("--debug", "Debug the deployment", false)
+  .action(async (options) => {
+    const success = await arc200PostUpdate(options);
+    if (!success) {
+      console.log("Failed to post update");
+    }
+  });
