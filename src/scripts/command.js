@@ -9,6 +9,14 @@ import { CONTRACT } from "ulujs";
 import * as dotenv from "dotenv";
 import * as crypto from "crypto";
 dotenv.config({ path: ".env" });
+// function that takes string and returns a Uint8Array of size 256
+export function stringToUint8Array(str, length) {
+    if (str.length > length)
+        return new Uint8Array(Buffer.from(str, "utf8"));
+    const bytes = new Uint8Array(length);
+    bytes.set(new Uint8Array(Buffer.from(str, "utf8")), 0);
+    return bytes;
+}
 export const paylines = [
     [0, 0, 0, 0, 0], // top line
     [1, 1, 1, 1, 1], // middle line
@@ -72,6 +80,14 @@ export const algodClient = new algosdk.Algodv2(process.env.ALGOD_TOKEN ||
 const indexerServerURL = process.env.INDEXER_SERVER || ALGO_INDEXER_SERVER;
 const indexerServerPort = process.env.INDEXER_PORT || ALGO_INDEXER_PORT;
 export const indexerClient = new algosdk.Indexer(process.env.INDEXER_TOKEN || "", indexerServerURL, indexerServerPort);
+const makeSpec = (methods) => {
+    return {
+        name: "",
+        desc: "",
+        methods,
+        events: [],
+    };
+};
 const signSendAndConfirm = async (txns, sk) => {
     const stxns = txns
         .map((t) => new Uint8Array(Buffer.from(t, "base64")))
@@ -912,3 +928,116 @@ export const arc200TotalSupply = async (options) => {
     const totalSupplyR = await ci.arc200_totalSupply();
     return totalSupplyR.returnValue;
 };
+export const arc200PostUpdate = async (options) => {
+    const ci = new CONTRACT(Number(options.apid), algodClient, indexerClient, makeSpec(YieldBearingTokenAppSpec.contract.methods), {
+        addr: addr,
+        sk: sk,
+    });
+    ci.setFee(2000);
+    const postUpdateR = await ci.post_update();
+    if (options.debug) {
+        console.log(postUpdateR);
+    }
+    if (postUpdateR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(postUpdateR.txns, sk);
+        }
+    }
+    return postUpdateR.success;
+};
+program
+    .command("post-update")
+    .description("Post update the arc200 token")
+    .requiredOption("-a, --apid <number>", "Specify the application ID")
+    .option("-s, --simulate", "Simulate the post update", false)
+    .option("--debug", "Debug the deployment", false)
+    .action(async (options) => {
+    const success = await arc200PostUpdate(options);
+    if (!success) {
+        console.log("Failed to post update");
+    }
+});
+export const setName = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    ci.setFee(2000);
+    const setNameR = await ci.set_name(stringToUint8Array(options.name, 32));
+    if (options.debug) {
+        console.log(setNameR);
+    }
+    if (setNameR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(setNameR.txns, sk);
+        }
+    }
+    return setNameR;
+};
+program
+    .command("set-name")
+    .description("Set the name of the yield bearing token")
+    .requiredOption("-a, --appId <number>", "Specify the application ID")
+    .requiredOption("-n, --name <string>", "Specify the name")
+    .option("-s, --sender <string>", "Specify sender")
+    .option("--debug", "Debug the set-name", false)
+    .option("--simulate", "Simulate the set-name", false)
+    .action(async (options) => {
+    const success = await setName(options);
+});
+export const setSymbol = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    ci.setFee(2000);
+    const setSymbolR = await ci.set_symbol(stringToUint8Array(options.symbol, 8));
+    if (options.debug) {
+        console.log(setSymbolR);
+    }
+    if (setSymbolR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(setSymbolR.txns, sk);
+        }
+    }
+    return setSymbolR;
+};
+program
+    .command("set-symbol")
+    .description("Set the symbol of the yield bearing token")
+    .requiredOption("-a, --appId <number>", "Specify the application ID")
+    .requiredOption("-s, --symbol <string>", "Specify the symbol")
+    .option("-t, --sender <string>", "Specify sender")
+    .option("--debug", "Debug the set-symbol", false)
+    .option("--simulate", "Simulate the set-symbol", false)
+    .action(async (options) => {
+    const success = await setSymbol(options);
+});
+export const ybtRevokeYieldBearingSource = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    ci.setFee(2000);
+    const revokeYieldBearingSourceR = await ci.revoke_yield_bearing_source(options.newOwner);
+    if (options.debug) {
+        console.log(revokeYieldBearingSourceR);
+    }
+    if (revokeYieldBearingSourceR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(revokeYieldBearingSourceR.txns, sk);
+        }
+    }
+    return revokeYieldBearingSourceR;
+};
+program
+    .command("ybt-revoke-yield-bearing-source")
+    .description("Revoke the yield bearing source")
+    .requiredOption("-a, --appId <number>", "Specify the application ID")
+    .requiredOption("-n, --newOwner <string>", "Specify the new owner")
+    .option("-s, --sender <string>", "Specify sender")
+    .option("--debug", "Debug the ybt-revoke-yield-bearing-source", false)
+    .option("--simulate", "Simulate the ybt-revoke-yield-bearing-source", false)
+    .action(async (options) => {
+    const success = await ybtRevokeYieldBearingSource(options);
+});

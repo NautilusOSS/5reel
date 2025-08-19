@@ -33,6 +33,7 @@ Bytes100: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[100]]
 Bytes56: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[56]]
 Bytes32: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[32]]
 Bytes15: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[15]]
+Bytes8: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[8]]
 Bytes3: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[3]]
 Bytes1: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[1]]
 
@@ -1026,6 +1027,13 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
     """
 
+    def __init__(self) -> None:
+        # upgradeable state
+        self.upgrader = Global.creator_address
+        self.contract_version = UInt64()
+        self.deployment_version = UInt64()
+        self.updatable = bool(1)
+
     @arc4.abimethod
     def bootstrap(self) -> None:
         payment = require_payment(Txn.sender)
@@ -1601,9 +1609,6 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         Post upgrade
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
-        # HoVHouseAlpha1
-        self.name = String("HoVHouseAlpha1")
-        self.symbol = String("HOVA1")
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1612,12 +1617,11 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         """
         self._only_owner()
         assert self.bootstrap_active == bool(), "bootstrap is not active"
-        self.name = String("HoVHouse")
-        self.symbol = String("HOV")
+        # don't need to enforce payment here but reccommend that it is paid prior to
+        # box creation ie depsoits
         self.decimals = UInt64(9)
         self.totalSupply = BigUInt(0)
         self.bootstrap_active = True
-        # require payment
 
     @arc4.abimethod(readonly=True)
     def bootstrap_cost(self) -> arc4.UInt64:
@@ -1625,7 +1629,44 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
 
     @subroutine
     def _bootstrap_cost(self) -> UInt64:
-        return UInt64(100000)
+        return Global.min_balance
+
+    @subroutine
+    def _get_length(self, bytes: Bytes) -> UInt64:
+        i = UInt64(0)
+        length = bytes.length
+        while i < length:
+            b = bytes[i]
+            if b == Bytes.from_hex("00"):
+                break
+            i += 1
+        return i
+
+    @subroutine
+    def _safe_slice(self, bytes: Bytes, max_length: UInt64) -> Bytes:
+        length = self._get_length(bytes)
+        return bytes if length >= max_length else bytes[:length]
+
+    # allow owner to set name and symbol to avoid hardcoding
+
+    # trimming string to not include null bytes is not required but improves ux in some
+    # explorers that freak out about the null bytes
+
+    @arc4.abimethod
+    def set_name(self, name: Bytes32) -> None:
+        """
+        Set the name of the contract
+        """
+        self._only_owner()
+        self.name = String.from_bytes(self._safe_slice(name.bytes, UInt64(32)))
+
+    @arc4.abimethod
+    def set_symbol(self, symbol: Bytes8) -> None:
+        """
+        Set the symbol of the contract
+        """
+        self._only_owner()
+        self.symbol = String.from_bytes(self._safe_slice(symbol.bytes, UInt64(8)))
 
     # --- ownable ---
 

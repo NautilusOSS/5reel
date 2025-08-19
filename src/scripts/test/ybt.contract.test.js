@@ -18,6 +18,9 @@ import {
   withdraw,
   getAccountBalance,
   ybtWithdraw,
+  setName,
+  setSymbol,
+  ybtRevokeYieldBearingSource,
 } from "../command.js";
 import algosdk from "algosdk";
 import BigNumber from "bignumber.js";
@@ -60,6 +63,24 @@ describe("ybt: Yield Bearing Token Testing", function () {
       appId,
       ...acc,
     });
+    await setName({
+      appId,
+      name: "YieldBearingToken",
+      ...acc,
+    });
+    const name = await arc200Name({
+      appId,
+    });
+    console.log("name", name);
+    await setSymbol({
+      appId,
+      symbol: "YBT",
+      ...acc,
+    });
+    const symbol = await arc200Symbol({
+      appId,
+    });
+    console.log("symbol", symbol);
     // bootstrap slot machine
     await bootstrap({
       appId: slotMachineAppId,
@@ -155,19 +176,16 @@ describe("ybt: Yield Bearing Token Testing", function () {
       appId,
       amount: balanceAfter3_1,
       ...acc,
-      debug: true,
     });
     const withdrawR2 = await ybtWithdraw({
       appId,
       amount: balanceAfter3_2,
       ...acc2,
-      debug: true,
     });
     const withdrawR3 = await ybtWithdraw({
       appId,
       amount: balanceAfter3_3,
       ...acc3,
-      debug: true,
     });
     const accBal1Diff = (await getAccountBalance(acc.addr)) / 1e6;
     const accBal2Diff = (await getAccountBalance(acc2.addr)) / 1e6;
@@ -233,6 +251,61 @@ describe("ybt: Yield Bearing Token Testing", function () {
     expect(withdrawR2.success).to.be.true;
     expect(withdrawR3.success).to.be.true;
   });
+  // new test
+  //   acc1 deposits 10
+  //   acc2 deposits 150
+  //   acc3 deposits 173
+  it("Should deposit correctly", async function () {
+    const acc1 = await getAccount();
+    await fund(acc1.addr, 10001e6);
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 15001e6);
+    await ybtDeposit({
+      appId,
+      amount: 10e6,
+      ...acc2,
+    });
+    await ybtWithdraw({
+      appId,
+      amount: 1e6,
+      ...acc2,
+    });
+    await ybtDeposit({
+      appId,
+      amount: 10e6,
+      ...acc1,
+    });
+    await ybtDeposit({
+      appId,
+      amount: 150e6,
+      ...acc2,
+    });
+    const depositR1 = await ybtDeposit({
+      appId,
+      amount: 173e6,
+      ...acc1,
+    });
+    const balance1 = await arc200BalanceOf({
+      appId,
+      address: acc1.addr,
+    });
+    const balance2 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const totalSupply = await arc200TotalSupply({
+      appId,
+    });
+    const pct1 = new BigNumber(balance1).div(totalSupply).toNumber();
+    const pct2 = new BigNumber(balance2).div(totalSupply).toNumber();
+    console.log({
+      pct1,
+      pct2,
+      balance1,
+      balance2,
+      totalSupply,
+    });
+  });
   //     Should not deposit if yield source not set
   //     Should calculate correct shares on first deposit
   //     Should calculate proportional shares on subsequent deposits
@@ -258,6 +331,7 @@ describe("ybt: Yield Bearing Token Testing", function () {
     const name2 = await arc200Name({
       appId,
     });
+    console.log("name2", name2);
     expect(name2).to.not.equal("");
   });
   //     Should have correct symbol
@@ -273,6 +347,138 @@ describe("ybt: Yield Bearing Token Testing", function () {
       appId,
     });
     expect(decimals2).to.not.equal(BigInt(0));
+  });
+  it("Should set symbol empty", async function () {
+    const setSymbolR = await setSymbol({
+      appId,
+      symbol: "",
+      ...acc,
+    });
+    const symbol2 = await arc200Symbol({
+      appId,
+    });
+    console.log("symbol2", symbol2);
+    expect(symbol2).to.equal("");
+    expect(setSymbolR.success).to.be.true;
+  });
+  it("Should set symbol short", async function () {
+    const setSymbolR = await setSymbol({
+      appId,
+      symbol: "Y",
+      ...acc,
+    });
+    const symbol2 = await arc200Symbol({
+      appId,
+    });
+    console.log("symbol2", symbol2);
+    expect(symbol2).to.equal("Y");
+    expect(setSymbolR.success).to.be.true;
+  });
+  it("Should set symbol long", async function () {
+    const expected = Array(8).fill("Y").join("");
+    const setSymbolR = await setSymbol({
+      appId,
+      symbol: expected,
+      ...acc,
+      debug: true,
+    });
+    const symbol2 = await arc200Symbol({
+      appId,
+    });
+    console.log("symbol2", symbol2);
+    expect(symbol2).to.equal(expected);
+    expect(setSymbolR.success).to.be.true;
+  });
+  it("Should not set symbol too long", async function () {
+    // Expect this to throw an error since symbol is too long
+    try {
+      const expected = Array(9).fill("Y").join("");
+      const setSymbolR = await setSymbol({
+        appId,
+        symbol: expected,
+        ...acc,
+      });
+      // If we get here, the call succeeded when it should have failed
+      assert.fail("Expected error caught");
+    } catch (error) {
+      // This is expected - the call should fail
+      console.log("Expected error caught:", error.message);
+      expect(error.message).to.equal(
+        "Value array does not match static array length. Expected 8, got 9"
+      );
+    }
+  });
+  it("Should set name", async function () {
+    const expected = "1234567890";
+    const setNameR = await setName({
+      appId,
+      name: expected,
+      ...acc,
+    });
+    const name2 = await arc200Name({
+      appId,
+    });
+    console.log("name2", name2);
+    expect(name2).to.equal(expected);
+    expect(setNameR.success).to.be.true;
+  });
+  it("Should set name empty", async function () {
+    const setNameR = await setName({
+      appId,
+      name: "",
+      ...acc,
+    });
+    const name2 = await arc200Name({
+      appId,
+    });
+    console.log("name2", name2);
+    expect(name2).to.equal("");
+    expect(setNameR.success).to.be.true;
+  });
+  it("Should set name short", async function () {
+    const expected = "1";
+    const setNameR = await setName({
+      appId,
+      name: expected,
+      ...acc,
+    });
+    const name2 = await arc200Name({
+      appId,
+    });
+    console.log("name2", name2);
+    expect(name2).to.equal(expected);
+    expect(setNameR.success).to.be.true;
+  });
+  it("Should set name long", async function () {
+    const expected = Array(32).fill("1").join("");
+    const setNameR = await setName({
+      appId,
+      name: expected,
+      ...acc,
+    });
+    const name2 = await arc200Name({
+      appId,
+    });
+    console.log("name2", name2);
+    expect(name2).to.equal(expected);
+    expect(setNameR.success).to.be.true;
+  });
+  it("Should not set name too long", async function () {
+    try {
+      const expected = Array(33).fill("1").join("");
+      const setNameR = await setName({
+        appId,
+        name: expected,
+        ...acc,
+      });
+      // If we get here, the call succeeded when it should have failed
+      assert.fail("Expected error caught");
+    } catch (error) {
+      console.log("Expected error caught:", error.message);
+      expect(error.message).to.equal(
+        "Value array does not match static array length. Expected 32, got 33"
+      );
+    }
   });
   //     Should track balances correctly
   //     Should handle transfers correctly
@@ -290,4 +496,18 @@ describe("ybt: Yield Bearing Token Testing", function () {
   //     Should handle insufficient payment amounts
   //     Should handle invalid yield source configurations
   //     Should handle contract state edge cases
+  // ---
+  it("Should revoke yield bearing source", async function () {
+    const revokeYieldBearingSourceR = await ybtRevokeYieldBearingSource({
+      appId,
+      newOwner: acc.addr,
+      ...acc,
+    });
+    const owner = await getOwner({
+      appId,
+    });
+    console.log("owner", owner);
+    expect(owner).to.equal(acc.addr);
+    expect(revokeYieldBearingSourceR.success).to.be.true;
+  });
 });
