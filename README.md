@@ -1,68 +1,230 @@
-# Getting Started
+# 5reel - Slot Machine Gaming Platform
 
-This is a lightweight repo to get started with building AVM smart contracts, testing them and deploying them.
+A comprehensive slot machine gaming platform built on the Algorand blockchain using Algorand Python and the ARC4 standard. The system consists of multiple interconnected smart contracts that provide a complete gaming experience with yield-bearing token mechanics.
+
+## 🎰 Features
+
+- **5x3 Slot Machine Grid** with 20 paylines
+- **Deterministic Outcomes** using block seeds for fair gameplay
+- **Multi-Payline Betting** system with configurable bet amounts
+- **Automatic Payout Calculation** based on symbol matches
+- **Yield-Bearing Token (YBT)** system for profit sharing
+- **Comprehensive Testing Suite** with extensive coverage
+- **Modular Architecture** with upgradeable contracts
+
+## 🏗️ Architecture
+
+The system is built with a modular architecture consisting of several key components:
+
+- **SlotMachine**: Main gaming contract that combines all functionality
+- **ReelManager**: Manages slot machine reels and grid generation
+- **SpinManager**: Handles betting, spinning, and payout logic
+- **BankManager**: Manages contract balances and financial operations
+- **YieldBearingToken**: ERC-20 compatible token with yield generation
+- **Base Contracts**: Ownable, Bootstrapped, and Touchable interfaces
+
+## 🎯 Payout System
+
+The slot machine uses a symbol-based payout system:
+
+| Symbol | 3-in-a-row | 4-in-a-row | 5-in-a-row |
+|--------|-------------|-------------|-------------|
+| A      | 100x        | 400x        | 2000x       |
+| B      | 40x         | 200x        | 1000x       |
+| C      | 25x         | 100x        | 400x        |
+| D      | 15x         | 40x         | 200x        |
+| _      | 0x          | 0x          | 0x          |
+
+## 🚀 Getting Started
+
+### Prerequisites
 
 Ensure you have the following installed:
-  - [node](https://nodejs.org/en/download/)
-  - [algokit](https://developer.algorand.org/docs/get-started/algokit/)
-    - Algokit will have prerequestites that need to be installed too.
+- [Node.js](https://nodejs.org/en/download/)
+- [Algokit](https://developer.algorand.org/docs/get-started/algokit/)
+- Python 3.8+ with pip
 
-# Development
+### Installation
 
-Edit the `contract.py` file to implement your desired contract using Python.
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd 5reel
+```
 
-You can add other files and import them in the `contract.py` file as necessary.
+2. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-# Compilation
+3. Install Node.js dependencies:
+```bash
+cd src/scripts
+npm install
+```
 
-1. Edit `generate_clients.sh`.
-  - Update `artifacts` to match your contract name(s).
-  - E.g. local artifacts=("HelloWorld")
-  - E.g. local artifacts=("HelloWorld" "OtherContract" "AnotherContract")
-2. In root directory run `source commands.sh`
-3. In root directory run `build-all`
-  - This will compile the contracts and put the teal and json files in the `artifacts` folder.
-  - This will put the interface ts files into the `src/scripts/clients` folder.
-4. To just re-compile the contracts you can use `build-artifacts`.
+## 🛠️ Development
 
-# Testing
+### Contract Development
 
-## Environment
+Edit the `src/contract.py` file to implement your desired contract using Python. The main contracts include:
 
-You can test on either testnet or your local devnet.
+- **SlotMachine**: Core gaming logic
+- **YieldBearingToken**: Token mechanics
+- **BankManager**: Financial operations
+- **ReelManager**: Reel management
+- **SpinManager**: Betting and spinning
 
-It's a matter of updating the deploy options as outlined in the [Deployment](#deployment) section.
+### Compilation
 
-If you opt to use devnet you will need to spin up the local devnet first with `algokit localnet start`
+1. Edit `generate_clients.sh`:
+   - Update `artifacts` to match your contract name(s)
+   - Example: `local artifacts=("SlotMachine" "YieldBearingToken")`
 
-Once running you can check the status at the following link:
-  - https://lora.algokit.io/localnet
+2. Build all contracts:
+```bash
+source commands.sh
+build-all
+```
 
-From there you can fund your testing account with tokens via the interface.
+This will:
+- Compile the contracts and put the TEAL and JSON files in the `artifacts` folder
+- Generate TypeScript interface files in `src/scripts/clients`
 
-## Run Tests
+3. Re-compile specific contracts:
+```bash
+build-artifacts
+```
 
-1. Run `mocha` in root directory.
+## 🧪 Testing
 
-# Deployment
+### Environment Setup
 
-Update `command.ts` to match contract name(s). This file is a helper to deploy your compiled contracts to the network set in the file itself.
+You can test on either testnet or your local devnet:
 
-1. Set your mnemonic in the `src/scripts/.env` file.
-2. Update the import statement starting on line 2 for your contract.
-3. DeployType to match your contract name(s).
-  - E.g. type DeployType = "HelloWorld";
-  - E.g. type DeployType = "HelloWorld" | "OtherContract" | "AnotherContract";
-4. options.type switch statement to match your contract name(s).
-  - Ensure the case matches your DeployTypes in the previous step and you return the correct Client for your contract from the import statement in the first step.
-5. If you get lint errrors for `algoClient` and `deploy` you can ignore.
-6. To change network you deploy to change the `ALGO_SERVER` and `ALGO_INDEXER_SERVER` variables.
-7. Run `npm i` in the `scripts` directory.
-8. Run `npx tsc` in the `scripts` directory.
-9. In the root directory run `cli deploy -t <contract name> -n <contract name>`
-  - E.g. `cli deploy -t HelloWorld -n HelloWorld`
-  - E.g. `cli deploy -t HelloWorld -n AnotherContract`
-  - E.g. `cli deploy -t HelloWorld -n OtherContract`
+- **Local Devnet**: Run `algokit localnet start` and check status at [https://lora.algokit.io/localnet](https://lora.algokit.io/localnet)
+- **Testnet**: Update deployment options in `src/scripts/command.ts`
+
+### Running Tests
+
+1. Run all tests:
+```bash
+mocha
+```
+
+2. Run specific test files:
+```bash
+mocha src/scripts/test/contract.test.js
+mocha src/scripts/test/ybt.contract.test.js
+```
+
+### Test Coverage
+
+The project includes comprehensive test coverage for:
+- Contract deployment and bootstrap
+- Betting and spinning functionality
+- Payout calculation and distribution
+- Yield token mechanics
+- Access control and security features
+- Grid generation and payline matching
+
+## 🚀 Deployment
+
+### Configuration
+
+1. Set your mnemonic in `src/scripts/.env`
+2. Update the import statements in `src/scripts/command.ts` for your contracts
+3. Update `DeployType` to match your contract names
+4. Update the `options.type` switch statement
+5. Configure network settings (`ALGO_SERVER`, `ALGO_INDEXER_SERVER`)
+
+### Deployment Commands
+
+1. Compile TypeScript:
+```bash
+cd src/scripts
+npx tsc
+```
+
+2. Deploy contracts:
+```bash
+cli deploy -t <contract-name> -n <contract-name>
+```
+
+Example:
+```bash
+cli deploy -t SlotMachine -n SlotMachine
+cli deploy -t YieldBearingToken -n YieldBearingToken
+```
+
+## 📊 Contract Costs
+
+### Bootstrap Requirements
+
+Each contract has specific bootstrap costs:
+
+- **SlotMachine**: ~71,200 microAlgos
+- **SpinManager**: ~26,500 microAlgos
+- **BankManager**: ~17,700 microAlgos
+- **Ownable**: ~17,300 microAlgos
+- **YieldBearingToken**: 100,000 microAlgos
+
+### Transaction Costs
+
+- **Spin**: 50,500 microAlgos + 30,000 per payline
+- **Claim**: 1,400 opcodes (uses OpUp)
+- **Deposit**: 28,500 microAlgos (box creation)
+
+## 🔒 Security Features
+
+- **Access Control**: Critical functions restricted to contract owner
+- **Upgradeable**: Contract can be upgraded by authorized parties
+- **Fuse System**: Irreversible security controls
+- **Deterministic Outcomes**: Fair gameplay using block seeds
+- **Claim Round Validation**: Prevents manipulation
+- **Automatic Expiration**: Unclaimed bets expire automatically
+
+## 📚 Documentation
+
+- **Main Documentation**: [docs/index.md](docs/index.md)
+- **Yield-Bearing Token**: [docs/yield-bearing-token.md](docs/yield-bearing-token.md)
+- **API Reference**: Generated TypeScript interfaces in `src/scripts/clients`
+
+## 🏷️ Version History
+
+- **v0.1.3** (2025-08-21): Comprehensive slot machine testing and contract improvements
+- **v0.1.2** (2025-08-19): Enhanced contract testing and command functionality
+- **v0.1.1** (2025-08-18): Yield-bearing token documentation and testing improvements
+- **v0.1.0** (2025-06-02): Initial stable release
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version information.
+
+## 🤝 Contributing
+
+When contributing to this project, please follow the conventional commit format:
+- `feat:` for new features
+- `fix:` for bug fixes
+- `docs:` for documentation changes
+- `style:` for formatting changes
+- `refactor:` for code refactoring
+- `test:` for adding or updating tests
+- `chore:` for maintenance tasks
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🌟 Features in Development
+
+- Additional payline patterns
+- Progressive jackpot system
+- Tournament functionality
+- Cross-chain compatibility
+- Enhanced yield distribution models
+
+---
+
+**5reel** - Bringing blockchain gaming to the next level with Algorand technology.
 
 
 
