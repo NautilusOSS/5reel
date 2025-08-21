@@ -18,26 +18,26 @@ export function stringToUint8Array(str, length) {
     return bytes;
 }
 export const paylines = [
-    [0, 0, 0, 0, 0], // top line
-    [1, 1, 1, 1, 1], // middle line
-    [2, 2, 2, 2, 2], // bottom line
-    [0, 1, 2, 1, 0], // V shape
-    [2, 1, 0, 1, 2], // inverted V
-    [0, 0, 1, 0, 0], // top-center peak
-    [2, 2, 1, 2, 2], // bottom-center valley
-    [1, 0, 1, 2, 1], // M shape
-    [1, 2, 1, 0, 1], // W shape
-    [0, 1, 1, 1, 2],
-    [2, 1, 1, 1, 0],
-    [0, 1, 2, 2, 2],
-    [2, 1, 0, 0, 0],
-    [1, 1, 0, 1, 1],
-    [1, 1, 2, 1, 1],
-    [0, 2, 0, 2, 0],
-    [2, 0, 2, 0, 2],
-    [1, 2, 2, 2, 1],
-    [1, 0, 0, 0, 1],
-    [0, 1, 0, 1, 2],
+    [1, 1, 1, 1, 1], // 1. Middle line
+    [0, 0, 0, 0, 0], // 2. Top line
+    [2, 2, 2, 2, 2], // 3. Bottom line
+    [0, 1, 2, 1, 0], // 4. V shape
+    [2, 1, 0, 1, 2], // 5. Inverted V
+    [0, 1, 1, 2, 2], // 6. Diagonal down
+    [2, 1, 1, 0, 0], // 7. Diagonal up
+    [0, 0, 1, 0, 0], // 8. Zigzag top
+    [2, 2, 1, 2, 2], // 9. Zigzag bottom
+    [0, 1, 2, 2, 1], // 10. Staircase down
+    [2, 1, 0, 0, 1], // 11. Staircase up
+    [1, 0, 0, 0, 1], // 12. Slight diagonal (left top heavy)
+    [1, 2, 2, 2, 1], // 13. Slight diagonal (left bottom heavy)
+    [0, 2, 0, 2, 0], // 14. Top-bottom-top
+    [2, 0, 2, 0, 2], // 15. Bottom-top-bottom
+    [0, 2, 1, 2, 0], // 16. Outer rails (zigzag top start)
+    [2, 0, 1, 0, 2], // 17. Outer rails (zigzag bottom start)
+    [0, 0, 1, 2, 2], // 18. Left hook
+    [2, 2, 1, 0, 0], // 19. Right hook
+    [1, 0, 1, 2, 1], // 20. Wave
 ];
 const makeContract = (appId, appSpec, acc) => {
     return new CONTRACT(appId, algodClient, indexerClient, {
@@ -333,6 +333,7 @@ export const matchPayline = async (options) => {
     const sk = options.sk || sks.deployer;
     const acc = { addr, sk };
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setFee(2000);
     const match_paylineR = await ci.match_payline(options.grid, options.paylineIndex);
     if (options.debug) {
         console.log(match_paylineR);
@@ -353,7 +354,7 @@ export const getBetClaimRound = async (options) => {
     }
     return 0;
 };
-export const invalidBetKey = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"; // Bytes56()
+export const invalidBetKey = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 export const spin = async (options) => {
     if (options.debug) {
         console.log(options);
@@ -513,7 +514,7 @@ export const simulateReelWindow = (reel, index) => {
     return reelWindow.join("");
 };
 // simulate grid payline match
-export const simulateGridPaylineMatch = (grid, payline) => {
+export const simulateGridPaylineMatch = (grid, payline, payoutMultipliers) => {
     // grid is 5 x 3 grid of symbols
     // payline is 5 numbers
     // each number an index in the grid column
@@ -525,21 +526,42 @@ export const simulateGridPaylineMatch = (grid, payline) => {
     }
     // get symbols along the payline
     const paylineSymbols = payline.map((rowIndex, colIndex) => columns[colIndex][rowIndex]);
-    // count consecutive matching symbols from left to right
-    let matches = 1; // Start with 1 since we're counting symbols, not pairs
-    for (let i = 0; i < paylineSymbols.length - 1; i++) {
-        if (paylineSymbols[i] === paylineSymbols[i + 1]) {
-            matches++;
-        }
-        else {
-            break; // Stop counting when we hit a non-match
-        }
-    }
+    // Check if first symbol is wildcard
     if (paylineSymbols[0] === "_") {
         return { matches: 0, initialSymbol: "_" };
     }
-    // return the number of matches and initial symbol
-    return { matches, initialSymbol: paylineSymbols[0] };
+    // Count occurrences of each symbol
+    const symbolCounts = {};
+    for (let i = 0; i < paylineSymbols.length; i++) {
+        if (paylineSymbols[i] === "_")
+            continue; // Skip wildcards
+        const currentSymbol = paylineSymbols[i];
+        symbolCounts[currentSymbol] = (symbolCounts[currentSymbol] || 0) + 1;
+    }
+    // Find the symbol with highest payout value
+    let bestMatches = 0;
+    let bestSymbol = "";
+    let bestPayout = 0;
+    for (const [symbol, count] of Object.entries(symbolCounts)) {
+        if (count < 3)
+            continue; // Need at least 3 matches for payout
+        const symbolMultiplier = payoutMultipliers?.[symbol] || 1;
+        const payout = count * symbolMultiplier;
+        if (payout > bestPayout) {
+            bestPayout = payout;
+            bestMatches = count;
+            bestSymbol = symbol;
+        }
+    }
+    // return the symbol with highest payout and the count
+    return { matches: bestMatches, initialSymbol: bestSymbol };
+};
+export const simulateGridPaylineSymbols = (grid, payline) => {
+    const gridArray = grid.split("");
+    const paylineSymbols = payline.map((rowIndex, colIndex) => gridArray[colIndex * 3 + rowIndex]);
+    const paylineSymbolsArray = paylineSymbols.map((symbol) => new Uint8Array(Buffer.from(symbol)));
+    const paylineSymbolsString = paylineSymbolsArray.map((symbol) => String.fromCharCode(symbol[0]));
+    return paylineSymbolsString.join("");
 };
 // Display the grid in a readable format ie 5 x 3 grid
 // Display the grid in a readable format ie 5 x 3 grid
@@ -552,9 +574,7 @@ export const displayGrid = (grid) => {
     const row1 = grid[0] + grid[3] + grid[6] + grid[9] + grid[12];
     const row2 = grid[1] + grid[4] + grid[7] + grid[10] + grid[13];
     const row3 = grid[2] + grid[5] + grid[8] + grid[11] + grid[14];
-    console.log(row1);
-    console.log(row2);
-    console.log(row3);
+    return [row1, row2, row3].join("\n");
 };
 // generate random 32 byte seed
 export const generateSeed = () => {
@@ -744,7 +764,7 @@ export const ybtWithdraw = async (options) => {
     const sk = options.sk || sks.deployer;
     const acc = { addr, sk };
     const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
-    ci.setFee(5000);
+    ci.setFee(7000);
     const ybt_withdrawR = await ci.withdraw(options.amount);
     if (options.debug) {
         console.log(ybt_withdrawR);
@@ -1041,3 +1061,26 @@ program
     .action(async (options) => {
     const success = await ybtRevokeYieldBearingSource(options);
 });
+export const getGridPaylineSymbols = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    const getGridPaylineSymbolsR = await ci.get_grid_payline_symbols(options.grid, options.paylineIndex);
+    if (options.debug) {
+        console.log(getGridPaylineSymbolsR);
+    }
+    return getGridPaylineSymbolsR.returnValue;
+};
+export const ybtGetMaxWithdrawableAmount = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    ci.setFee(7000);
+    const getMaxWithdrawableAmountR = await ci.get_max_withdrawable_amount(options.address);
+    if (options.debug) {
+        console.log(getMaxWithdrawableAmountR);
+    }
+    return getMaxWithdrawableAmountR.returnValue;
+};

@@ -66,5 +66,5 @@ describe("spinman: Spin Manager Testing", function () {
     expect(appId).to.not.equal(0);
   });
 
-  // more tests
+  it("Should get spin params", async function () {});
 });

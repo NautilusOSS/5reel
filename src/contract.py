@@ -27,6 +27,9 @@ from opensubmarine import (
 )
 from opensubmarine.utils.algorand import require_payment
 
+# =============================================================================
+# TYPE ALIASES
+# =============================================================================
 
 Bytes500: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[500]]
 Bytes100: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[100]]
@@ -34,11 +37,13 @@ Bytes56: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[56]]
 Bytes32: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[32]]
 Bytes15: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[15]]
 Bytes8: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[8]]
+Bytes5: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[5]]
 Bytes3: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[3]]
 Bytes1: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[1]]
 
 BOX_COST_BALANCE = 28500
 MAX_CLAIM_ROUND_DELTA = 1000
+CLAIM_ROUND_DELAY = 5
 SCALING_FACTOR = 10**12
 
 
@@ -61,7 +66,7 @@ class SpinParams(arc4.Struct):
 
 class PaylineMatch(arc4.Struct):
     count: arc4.UInt64
-    initial_symbol: arc4.Byte
+    symbol: arc4.Byte
 
 
 class Bet(arc4.Struct):  # ~ Bytes56
@@ -854,10 +859,10 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         ), "spin params must not be initialized"
         Box(SpinParams, key="spin_params").value = SpinParams(
             max_extra_payment=arc4.UInt64(1000000),  # 1 VOI
-            max_payout_multiplier=arc4.UInt64(1000),  # 1000x
+            max_payout_multiplier=arc4.UInt64(2000),  # 2000x
             round_future_delta=arc4.UInt64(1),  # 1 round
-            min_bet_amount=arc4.UInt64(1000000),  # 1 VOI (1 VOI bet, 1 payline)
-            max_bet_amount=arc4.UInt64(20000000),  # 20 VOI
+            min_bet_amount=arc4.UInt64(1 * 10**6),  # 1 VOI
+            max_bet_amount=arc4.UInt64(2000 * 10**6),  # 2000 VOI
             min_bank_amount=arc4.UInt64(100000000000),  # 100k VOI
             spin_fuse=arc4.Bool(True),
         )
@@ -875,6 +880,10 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
             min_bank_amount=arc4.UInt64(0),
             spin_fuse=arc4.Bool(False),
         )
+
+    @arc4.abimethod
+    def spin_params(self) -> SpinParams:
+        return self._spin_params()
 
     @subroutine
     def _spin_params(self) -> SpinParams:
@@ -937,7 +946,14 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
     def _spin_payline_cost(self) -> UInt64:
         return UInt64(30000)
 
-    # override
+    @subroutine
+    def _get_lockup_cap(self) -> UInt64:
+        return UInt64(200_000 * 10**6)
+
+    @subroutine
+    def _minUInt64(self, a: UInt64, b: UInt64) -> UInt64:
+        return a if a < b else b
+
     @subroutine
     def _spin(
         self, bet_amount: UInt64, max_payline_index: UInt64, index: UInt64
@@ -984,11 +1000,13 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         # assert max payline index is less than max index
         self._increment_balance_total(expected_payment_amount)
         self._increment_balance_available(expected_payment_amount)
+        lockup_cap = self._get_lockup_cap()
         max_possible_payout = (
             expected_payment_amount * self._get_max_payout_multiplier()
         )
-        self._increment_balance_locked(max_possible_payout)
-        self._decrement_balance_available(max_possible_payout)
+        lockup_amount = self._minUInt64(max_possible_payout, lockup_cap)
+        self._increment_balance_locked(lockup_amount)
+        self._decrement_balance_available(lockup_amount)
         # Create bet
         confirmed_round = Global.round
         bet_key = self._get_bet_key(Txn.sender, bet_amount, max_payline_index, index)
@@ -1134,32 +1152,30 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             + self._get_reel_window(UInt64(4), reel_tops[4].native)
         )
 
-    # --- Paylines ---
+    @arc4.abimethod(readonly=True)
+    def get_grid_payline_symbols(
+        self, grid: Bytes15, payline_index: arc4.UInt64
+    ) -> Bytes5:
+        return Bytes5.from_bytes(
+            self._get_grid_payline_symbols(grid.bytes, payline_index.native)
+        )
 
-    # classic paylines for 5 x 3 grid
-    # [
-    #   [0, 0, 0, 0, 0],  # top line
-    #   [1, 1, 1, 1, 1],  # middle line
-    #   [2, 2, 2, 2, 2],  # bottom line
-    #   [0, 1, 2, 1, 0],  # V shape
-    #   [2, 1, 0, 1, 2],  # inverted V
-    #   [0, 0, 1, 0, 0],  # top-center peak
-    #   [2, 2, 1, 2, 2],  # bottom-center valley
-    #   [1, 0, 1, 2, 1],  # M shape
-    #   [1, 2, 1, 0, 1]   # W shape
-    # Additional paylines
-    #   [0,1,1,1,2]
-    #   [2,1,1,1,0]
-    #   [0,1,2,2,2]
-    #   [2,1,0,0,0]
-    #   [1,1,0,1,1]
-    #   [1,1,2,1,1]
-    #   [0,2,0,2,0]
-    #   [2,0,2,0,2]
-    #   [1,2,2,2,1]
-    #   [1,0,0,0,1]
-    #   [0,1,0,1,2]
-    # ]
+    @subroutine
+    def _get_grid_payline_symbols(self, grid: Bytes, payline_index: UInt64) -> Bytes:
+        payline = self._get_payline(payline_index)
+        symbols = arc4.StaticArray[arc4.Byte, typing.Literal[5]](
+            arc4.Byte(0),
+            arc4.Byte(0),
+            arc4.Byte(0),
+            arc4.Byte(0),
+            arc4.Byte(0),
+        )
+        for i in urange(5):
+            grid_index = i * UInt64(3) + payline[i].native
+            symbols[i] = arc4.Byte.from_bytes(grid[grid_index : grid_index + 1])
+        return symbols.bytes
+
+    # --- Paylines ---
 
     @arc4.abimethod(readonly=True)
     def get_payline_count(self) -> arc4.UInt64:
@@ -1202,127 +1218,126 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             key="paylines",
         ).get(
             default=arc4.StaticArray(
-                # top line
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                # middle line
+                # 1. Middle line
                 arc4.UInt64(1),
                 arc4.UInt64(1),
                 arc4.UInt64(1),
                 arc4.UInt64(1),
                 arc4.UInt64(1),
-                # bottom line
+                # 2. Top line
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                # 3. Bottom line
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
-                # V shape
+                # 4. V shape
                 arc4.UInt64(0),
                 arc4.UInt64(1),
                 arc4.UInt64(2),
                 arc4.UInt64(1),
                 arc4.UInt64(0),
-                # inverted V
+                # 5. Inverted V
                 arc4.UInt64(2),
                 arc4.UInt64(1),
                 arc4.UInt64(0),
                 arc4.UInt64(1),
                 arc4.UInt64(2),
-                # top-center peak
+                # 6. Diagonal down
+                arc4.UInt64(0),
+                arc4.UInt64(1),
+                arc4.UInt64(1),
+                arc4.UInt64(2),
+                arc4.UInt64(2),
+                # 7. Diagonal up
+                arc4.UInt64(2),
+                arc4.UInt64(1),
+                arc4.UInt64(1),
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                # 8. Zigzag top
                 arc4.UInt64(0),
                 arc4.UInt64(0),
                 arc4.UInt64(1),
                 arc4.UInt64(0),
                 arc4.UInt64(0),
-                # bottom-center valley
+                # 9. Zigzag bottom
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(1),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
-                # M shape
-                arc4.UInt64(1),
-                arc4.UInt64(0),
-                arc4.UInt64(1),
-                arc4.UInt64(2),
-                arc4.UInt64(1),
-                # W shape
-                arc4.UInt64(1),
-                arc4.UInt64(2),
-                arc4.UInt64(1),
-                arc4.UInt64(0),
-                arc4.UInt64(1),
-                # Additional paylines
-                # [0,1,1,1,2]
-                arc4.UInt64(0),
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                arc4.UInt64(2),
-                # [2,1,1,1,0]
-                arc4.UInt64(2),
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                arc4.UInt64(0),
-                # [0,1,2,2,2]
+                # 10. Staircase down
                 arc4.UInt64(0),
                 arc4.UInt64(1),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
-                arc4.UInt64(2),
-                # [2,1,0,0,0]
-                arc4.UInt64(2),
                 arc4.UInt64(1),
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                arc4.UInt64(0),
-                # [1,1,0,1,1]
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                arc4.UInt64(0),
-                arc4.UInt64(1),
-                arc4.UInt64(1),
-                # [1,1,2,1,1]
-                arc4.UInt64(1),
-                arc4.UInt64(1),
+                # 11. Staircase up
                 arc4.UInt64(2),
                 arc4.UInt64(1),
+                arc4.UInt64(0),
+                arc4.UInt64(0),
                 arc4.UInt64(1),
-                # [0,2,0,2,0]
+                # 12. Slight diagonal
+                arc4.UInt64(1),
                 arc4.UInt64(0),
-                arc4.UInt64(2),
                 arc4.UInt64(0),
-                arc4.UInt64(2),
                 arc4.UInt64(0),
-                # [2,0,2,0,2]
-                arc4.UInt64(2),
-                arc4.UInt64(0),
-                arc4.UInt64(2),
-                arc4.UInt64(0),
-                arc4.UInt64(2),
-                # [1,2,2,2,1]
+                arc4.UInt64(1),
+                # 13. Slight diagonal
                 arc4.UInt64(1),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(2),
                 arc4.UInt64(1),
-                # [1,0,0,0,1]
+                # 14. Top-bottom-top
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                # 15. Bottom-top-bottom
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                # 16. Outer rails up
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                arc4.UInt64(1),
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                # 17. Outer rails down
+                arc4.UInt64(2),
+                arc4.UInt64(0),
+                arc4.UInt64(1),
+                arc4.UInt64(0),
+                arc4.UInt64(2),
+                # 18. Left hook
+                arc4.UInt64(0),
+                arc4.UInt64(0),
+                arc4.UInt64(1),
+                arc4.UInt64(2),
+                arc4.UInt64(2),
+                # 19. Right hook
+                arc4.UInt64(2),
+                arc4.UInt64(2),
                 arc4.UInt64(1),
                 arc4.UInt64(0),
                 arc4.UInt64(0),
-                arc4.UInt64(0),
-                arc4.UInt64(1),
-                # [0,1,0,1,2]
-                arc4.UInt64(0),
+                # 20. Wave
                 arc4.UInt64(1),
                 arc4.UInt64(0),
                 arc4.UInt64(1),
                 arc4.UInt64(2),
+                arc4.UInt64(1),
             )
         )
 
@@ -1333,53 +1348,95 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
         Returns payline match
                 count, number of consecutive matches on payline
-                initial_symbol, staring symbol
+                symbol, staring symbol
         """
+        ensure_budget(700, OpUpFeeSource.GroupCredit)
         return self._match_payline(grid.bytes, payline_index.native)
 
     @subroutine
     def _match_payline(self, grid: Bytes, payline_index: UInt64) -> PaylineMatch:
         """
         Match a payline on the grid.
-        Returns consecutive payline matches.
+        Returns count of symbol occurrences in the payline.
         """
-        paylines = self._get_paylines()
-        # Replace slicing with individual index access
-        start = payline_index * UInt64(5)
-        payline = arc4.StaticArray(
-            paylines[start],
-            paylines[start + UInt64(1)],
-            paylines[start + UInt64(2)],
-            paylines[start + UInt64(3)],
-            paylines[start + UInt64(4)],
-        )
 
-        # Get the first symbol to match against
-        first_pos = UInt64(0) * UInt64(3) + payline[0].native
-        symbol_to_match = grid[first_pos : first_pos + 1]
+        symbol_A = Bytes(b"A")
+        symbol_B = Bytes(b"B")
+        symbol_C = Bytes(b"C")
+        symbol_D = Bytes(b"D")
 
-        if symbol_to_match == b"_":
-            return PaylineMatch(
-                count=arc4.UInt64(0),
-                initial_symbol=arc4.Byte.from_bytes(symbol_to_match),
+        count_A = UInt64(0)
+        count_B = UInt64(0)
+        count_C = UInt64(0)
+        count_D = UInt64(0)
+
+        highest_count = UInt64(0)
+        highest_symbol = Bytes(b"_")
+        highest_payout = UInt64(0)
+
+        symbols = self._get_grid_payline_symbols(grid, payline_index)
+
+        # Count all occurrences of the symbol in the payline
+        for i in urange(5):
+            current_symbol = symbols[i]
+            if current_symbol == symbol_A:
+                count_A += UInt64(1)
+            elif current_symbol == symbol_B:
+                count_B += UInt64(1)
+            elif current_symbol == symbol_C:
+                count_C += UInt64(1)
+            elif current_symbol == symbol_D:
+                count_D += UInt64(1)
+
+        # determine the highest payout symbol
+
+        m_highest_payout_a = self._get_payout_multiplier(
+            PaylineMatch(
+                count=arc4.UInt64(count_A),
+                symbol=arc4.Byte.from_bytes(symbol_A),
             )
+        )
+        if m_highest_payout_a > highest_payout:
+            highest_count = count_A
+            highest_symbol = symbol_A
+            highest_payout = m_highest_payout_a
 
-        matches = UInt64(1)  # We start with 1 match (the first symbol)
+        m_highest_payout_b = self._get_payout_multiplier(
+            PaylineMatch(
+                count=arc4.UInt64(count_B),
+                symbol=arc4.Byte.from_bytes(symbol_B),
+            )
+        )
+        if m_highest_payout_b > highest_payout:
+            highest_count = count_B
+            highest_symbol = symbol_B
+            highest_payout = m_highest_payout_b
 
-        # Check subsequent positions
-        for i in urange(1, 5):
-            grid_pos = i * UInt64(3) + payline[i].native
-            current_symbol = grid[grid_pos : grid_pos + 1]
+        m_highest_payout_c = self._get_payout_multiplier(
+            PaylineMatch(
+                count=arc4.UInt64(count_C),
+                symbol=arc4.Byte.from_bytes(symbol_C),
+            )
+        )
+        if m_highest_payout_c > highest_payout:
+            highest_count = count_C
+            highest_symbol = symbol_C
+            highest_payout = m_highest_payout_c
 
-            # If symbol matches, continue counting
-            if current_symbol == symbol_to_match:
-                matches += UInt64(1)
-            else:
-                break
+        m_highest_payout_d = self._get_payout_multiplier(
+            PaylineMatch(
+                count=arc4.UInt64(count_D),
+                symbol=arc4.Byte.from_bytes(symbol_D),
+            )
+        )
+        if m_highest_payout_d > highest_payout:
+            highest_count = count_D
+            highest_symbol = symbol_D
+            highest_payout = m_highest_payout_d
 
         return PaylineMatch(
-            count=arc4.UInt64(matches),
-            initial_symbol=arc4.Byte.from_bytes(symbol_to_match),
+            count=arc4.UInt64(highest_count),
+            symbol=arc4.Byte.from_bytes(highest_symbol),
         )
 
     @arc4.abimethod
@@ -1411,7 +1468,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         ensure_budget(1400, OpUpFeeSource.GroupCredit)  # REM may use 1399 opcode budget
         return arc4.UInt64(self._claim(bet_key.bytes))
 
-    # override
     @subroutine
     def _claim(self, bet_key: Bytes) -> UInt64:
         """
@@ -1425,6 +1481,12 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         assert bet_key in self.bet, "bet not found"
         bet = self.bet[bet_key].copy()
         spin_params = self._spin_params()
+        if (
+            bet.who.native != Txn.sender
+            and Global.round < bet.claim_round.native + UInt64(CLAIM_ROUND_DELAY)
+        ):
+            assert False, "only bet owner can claim during early claim period"
+
         # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
         # and we can return the box cost to the sender
         if Global.round > bet.claim_round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
@@ -1434,24 +1496,26 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             remaining_paylines = (
                 bet.max_payline_index.native - bet.payline_index.native + UInt64(1)
             )
+            lockup_cap = self._get_lockup_cap()
             max_possible_payout = (
                 bet.amount.native
                 * remaining_paylines
                 * spin_params.max_payout_multiplier.native
             )
-            self._decrement_balance_locked(max_possible_payout)
-            self._increment_balance_available(max_possible_payout)
+            lockup_release = self._minUInt64(max_possible_payout, lockup_cap)
+            self._decrement_balance_locked(lockup_release)
+            self._increment_balance_available(lockup_release)
             itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
-            # arc4.emit(
-            #     BetClaimed(
-            #         who=bet.who,
-            #         amount=bet.amount,
-            #         confirmed_round=bet.confirmed_round,
-            #         index=bet.index,
-            #         claim_round=bet.claim_round,
-            #         payout=arc4.UInt64(0),
-            #     )
-            # )
+            arc4.emit(
+                BetClaimed(
+                    who=bet.who,
+                    amount=bet.amount,
+                    max_payline_index=bet.max_payline_index,
+                    claim_round=bet.claim_round,
+                    payout_index=bet.payline_index,
+                    payout=arc4.UInt64(0),
+                )
+            )
             return UInt64(0)
         # if round is less than claim_round + 1000, the bet is still active
         # and we need to calculate the payout
@@ -1479,25 +1543,17 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             #########################################################
             # Update balance tracking
             #   Release locked balance and adjust available balance
+            lockup_cap = self._get_lockup_cap()
             max_possible_payout = (
                 bet.amount.native * spin_params.max_payout_multiplier.native
             )
-            self._decrement_balance_locked(max_possible_payout)
-            self._increment_balance_available(max_possible_payout - payout.native)
+            lockup_release = self._minUInt64(max_possible_payout, lockup_cap)
+            self._decrement_balance_locked(lockup_release)
+            self._increment_balance_available(lockup_release - payout.native)
             self._decrement_balance_total(payout.native)
             # TODO branch on payline index
             if payout > 0:
                 itxn.Payment(receiver=bet.who.native, amount=payout.native).submit()
-            # arc4.emit(
-            #     BetClaimed(
-            #         who=bet.who,
-            #         amount=bet.amount,
-            #         confirmed_round=bet.confirmed_round,
-            #         index=bet.index,
-            #         claim_round=bet.claim_round,
-            #         payout=payout,
-            #     )
-            # )
             if bet.payline_index.native + UInt64(1) > bet.max_payline_index.native:
                 del self.bet[bet_key]
                 itxn.Payment(
@@ -1511,6 +1567,16 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
                     receiver=Txn.sender,
                     amount=self._spin_payline_cost(),
                 ).submit()
+            arc4.emit(
+                BetClaimed(
+                    who=bet.who,
+                    amount=bet.amount,
+                    max_payline_index=bet.max_payline_index,
+                    claim_round=bet.claim_round,
+                    payout_index=bet.payline_index,
+                    payout=payout,
+                )
+            )
             return payout.native
 
     @subroutine
@@ -1522,56 +1588,54 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         self, symbol: arc4.Byte, count: arc4.UInt64
     ) -> arc4.UInt64:
         return arc4.UInt64(
-            self._get_payout_multiplier(
-                PaylineMatch(count=count, initial_symbol=symbol)
-            )
+            self._get_payout_multiplier(PaylineMatch(count=count, symbol=symbol))
         )
 
     @subroutine
     def _get_payout_multiplier(self, pm: PaylineMatch) -> UInt64:
         """
         const PAYOUTS = {
-            A: { 3: 50, 4: 200, 5: 1000 },
-            B: { 3: 20,  4: 100, 5: 500  },
-            C: { 3: 10,  4: 50,  5: 200  },
-            D: { 3: 5,   4: 20,  5: 100  },
+            A: { 3: 100, 4: 400, 5: 2000 },
+            B: { 3: 40,  4: 200, 5: 1000 },
+            C: { 3: 25,  4: 100, 5: 400 },
+            D: { 3: 15,  4: 50,  5: 200 },
             _: {}
         };
         """
-        if pm.initial_symbol.bytes == Bytes(b"A"):
+        if pm.symbol.bytes == Bytes(b"A"):
+            if pm.count == UInt64(5):
+                return UInt64(2000)
+            elif pm.count == UInt64(4):
+                return UInt64(400)
+            elif pm.count == UInt64(3):
+                return UInt64(100)
+            else:
+                return UInt64(0)
+        elif pm.symbol.bytes == Bytes(b"B"):
             if pm.count == UInt64(5):
                 return UInt64(1000)
             elif pm.count == UInt64(4):
                 return UInt64(200)
             elif pm.count == UInt64(3):
-                return UInt64(50)
+                return UInt64(40)
             else:
                 return UInt64(0)
-        elif pm.initial_symbol.bytes == Bytes(b"B"):
+        elif pm.symbol.bytes == Bytes(b"C"):
             if pm.count == UInt64(5):
-                return UInt64(500)
+                return UInt64(400)
             elif pm.count == UInt64(4):
                 return UInt64(100)
             elif pm.count == UInt64(3):
-                return UInt64(20)
+                return UInt64(25)
             else:
                 return UInt64(0)
-        elif pm.initial_symbol.bytes == Bytes(b"C"):
+        elif pm.symbol.bytes == Bytes(b"D"):
             if pm.count == UInt64(5):
                 return UInt64(200)
             elif pm.count == UInt64(4):
                 return UInt64(50)
             elif pm.count == UInt64(3):
-                return UInt64(10)
-            else:
-                return UInt64(0)
-        elif pm.initial_symbol.bytes == Bytes(b"D"):
-            if pm.count == UInt64(5):
-                return UInt64(100)
-            elif pm.count == UInt64(4):
-                return UInt64(20)
-            elif pm.count == UInt64(3):
-                return UInt64(5)
+                return UInt64(15)
             else:
                 return UInt64(0)
         else:  # _
@@ -1668,9 +1732,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         self._only_owner()
         self.symbol = String.from_bytes(self._safe_slice(symbol.bytes, UInt64(8)))
 
-    # --- ownable ---
+    # owner methods
 
-    # override
     @arc4.abimethod
     def transfer_ownership(self, new_owner: arc4.Address) -> None:
         """
@@ -1737,13 +1800,15 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
     @subroutine
     def _get_yield_bearing_source_balance(self) -> UInt64:
         """
-        Get the balance of the yield bearing source
+        Get the total balance of the yield bearing source.
+        Used for share calculation during deposits to represent the actual
+        underlying assets backing the yield-bearing tokens.
         """
-        available_balance, txn = arc4.abi_call(
-            BankManagerInterface.get_balance_available,
+        total_balance, txn = arc4.abi_call(
+            BankManagerInterface.get_balance_total,
             app_id=Application(self.yield_bearing_source),
         )
-        return available_balance.native
+        return total_balance.native
 
     @arc4.abimethod
     def deposit(self) -> arc4.UInt256:
@@ -1759,7 +1824,7 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         )
         assert deposit_amount > 0, "deposit amount must be greater than 0"
 
-        # 🔑 KEY FIX: Query balance BEFORE forwarding deposit
+        # Query balance BEFORE forwarding deposit
         total_assets = self._get_yield_bearing_source_balance()
 
         # Forward to yield source
@@ -1785,21 +1850,23 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         return UInt64(28500)
 
     @subroutine
-    def _mint(self, amount: BigUInt, prior_balance: UInt64) -> BigUInt:
+    def _mint(self, amount: BigUInt, total_assets: UInt64) -> BigUInt:
         """
         Mint tokens based on prior balance (before deposit was forwarded)
         """
-        if self.totalSupply == 0:
-            shares = amount
-        else:
-            # Use prior_balance instead of querying current balance
-            shares = (amount * self.totalSupply) // BigUInt(prior_balance)
-
+        # If no shares, mint the full amount
+        # Else use total_assets instead of querying current balance
+        shares = (
+            amount
+            if self.totalSupply == 0
+            else (amount * self.totalSupply) // BigUInt(total_assets)
+        )
         # Ensure minimum shares are minted to prevent dust deposits
         assert shares > 0, "Deposit amount too small"
+        # Update state
         self.totalSupply += shares
         self.balances[Txn.sender] = self._balanceOf(Txn.sender) + shares
-
+        # Emit event
         arc4.emit(
             arc200_Transfer(
                 arc4.Address(Global.zero_address),
@@ -1809,14 +1876,53 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         )
         return shares
 
+    @arc4.abimethod(readonly=True)
+    def get_max_withdrawable_amount(self, who: arc4.Address) -> arc4.UInt256:
+        return arc4.UInt256(self._get_max_withdrawable_amount(who.native))
+
+    @subroutine
+    def _get_max_withdrawable_amount(self, who: Account) -> BigUInt:
+        balance = self._balanceOf(who)
+        if balance == 0:
+            return BigUInt(0)
+
+        # Get available and locked balances from yield bearing source
+        app = Application(self.yield_bearing_source)
+        available_balance, txn1 = arc4.abi_call(
+            BankManagerInterface.get_balance_available,
+            app_id=app,
+        )
+        locked_balance, txn2 = arc4.abi_call(
+            BankManagerInterface.get_balance_locked,
+            app_id=app,
+        )
+        # Calculate the maximum withdrawable amount based on available/locked ratio
+        total_balance = available_balance.native + locked_balance.native
+        if total_balance == 0:
+            return BigUInt(0)
+
+        # Calculate how much of the user's requested amount can actually be withdrawn
+        # based on the proportion of available balance
+        # Use scaling factor to maintain precision in integer arithmetic
+        max_withdrawable = (balance * BigUInt(available_balance.native)) // BigUInt(
+            total_balance
+        )
+        return max_withdrawable
+
     @arc4.abimethod
     def withdraw(self, amount: arc4.UInt256) -> arc4.UInt64:
         """
-        Withdraw funds from the contract
+        Withdraw funds from the contract.
+        The actual withdrawal amount is limited by the ratio of available to locked balances
+        in the yield bearing source. If all funds are available, the full amount can be withdrawn.
         """
         assert amount.native > 0, "amount must be greater than 0"
         assert self.yield_bearing_source > 0, "yield bearing source not set"
-        assert self._balanceOf(Txn.sender) >= amount.native, "insufficient balance"
+
+        max_withdrawable = self._get_max_withdrawable_amount(Txn.sender)
+        assert max_withdrawable >= amount.native, "insufficient balance"
+
+        # burn shares for underlying assets
         return arc4.UInt64(self._burn(amount.native))
 
     @subroutine
@@ -1824,13 +1930,16 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         """
         Burn tokens (shares) based on the proportion of assets being withdrawn
         """
-        # Calculate withdrawal amount with increased precision
-        slot_machine_balance, txn = arc4.abi_call(
-            BankManagerInterface.get_balance_available,
-            app_id=Application(self.yield_bearing_source),
+        # Get total balance of yield bearing source
+        app = Application(self.yield_bearing_source)
+        total_balance, txn1 = arc4.abi_call(
+            BankManagerInterface.get_balance_total,
+            app_id=app,
         )
-        big_slot_machine_balance = BigUInt(slot_machine_balance.native)
+        # Have total balance to calculate the amount of shares to burn
+        big_slot_machine_balance = BigUInt(total_balance.native)
 
+        # Calculate withdrawal amount with increased precision
         amount_to_withdraw = (
             (withdraw_amount * big_slot_machine_balance * SCALING_FACTOR)
             // self.totalSupply
@@ -1841,9 +1950,6 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
             arc4.UInt256(amount_to_withdraw).bytes[-8:]
         ).native
         assert small_amount_to_withdraw > 0, "amount to withdraw is 0"
-        assert (
-            small_amount_to_withdraw <= slot_machine_balance.native
-        ), "amount to withdraw exceeds available balance"
 
         # Update balances first
         self.balances[Txn.sender] -= withdraw_amount

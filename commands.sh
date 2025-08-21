@@ -42,7 +42,7 @@ mocha() {
       npm test
       true
     } || {
-      npm run test-${1}
+      npx mocha --grep "${@}"
     }
   )
 }

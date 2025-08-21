@@ -5,3 +5,4 @@ artifacts
 .env*
 *.json
 commands
+out
