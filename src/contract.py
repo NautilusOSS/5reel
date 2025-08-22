@@ -300,6 +300,7 @@ class ReelManagerInterface(ARC4Contract):
         """
         return Bytes()
 
+    # unused
     @arc4.abimethod(readonly=True)
     def get_slot(self, reel: arc4.UInt64, index: arc4.UInt64) -> Bytes1:
         """
@@ -362,6 +363,7 @@ class ReelManager(ReelManagerInterface):
         reel_length = self._get_reel_length()
         return self._get_reels()[index * reel_length : (index + 1) * reel_length]
 
+    # unused
     # override
     @arc4.abimethod(readonly=True)
     def get_slot(self, reel: arc4.UInt64, index: arc4.UInt64) -> Bytes1:

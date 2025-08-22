@@ -3,6 +3,7 @@ import { SlotMachineClient, APP_SPEC as SlotMachineAppSpec, } from "./clients/Sl
 import { BeaconClient } from "./clients/BeaconClient.js";
 import { BankManagerClient } from "./clients/BankManagerClient.js";
 import { SpinManagerClient } from "./clients/SpinManagerClient.js";
+import { ReelManagerClient } from "./clients/ReelManagerClient.js";
 import { YieldBearingTokenClient, APP_SPEC as YieldBearingTokenAppSpec, } from "./clients/YieldBearingTokenClient.js";
 import algosdk from "algosdk";
 import { CONTRACT } from "ulujs";
@@ -222,6 +223,10 @@ export const deploy = async (options) => {
             Client = SpinManagerClient;
             break;
         }
+        case "ReelManager": {
+            Client = ReelManagerClient;
+            break;
+        }
         case "YieldBearingToken": {
             Client = YieldBearingTokenClient;
             break;
@@ -267,7 +272,7 @@ export const getReels = async (options) => {
     const acc = { addr, sk };
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
     const get_reelsR = await ci.get_reels();
-    return get_reelsR;
+    return get_reelsR.returnValue;
 };
 export const getGrid = async (options) => {
     if (options.debug) {
@@ -293,7 +298,7 @@ export const getReel = async (options) => {
     const acc = { addr, sk };
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
     const get_reelR = await ci.get_reel(options.reelIndex);
-    return get_reelR;
+    return get_reelR.returnValue;
 };
 export const getPayline = async (options) => {
     if (options.debug) {
@@ -315,7 +320,7 @@ export const getReelWindow = async (options) => {
     const acc = { addr, sk };
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
     const get_reel_windowR = await ci.get_reel_window(options.reel, options.index);
-    return get_reel_windowR;
+    return get_reel_windowR.returnValue;
 };
 export const getPaylines = async (options) => {
     if (options.debug) {
@@ -1116,6 +1121,22 @@ export const getSeedBetGrid = async (options) => {
     }
     if (getBetKeyR.success) {
         return Buffer.from(getBetKeyR.returnValue).toString("utf-8");
+    }
+    return "";
+};
+export const getSlot = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setEnableRawBytes(true);
+    ci.setFee(7000); // TODO set to appropriate amount
+    const getSlotR = await ci.get_slot(options.reel, options.index);
+    if (options.debug) {
+        console.log(getSlotR);
+    }
+    if (getSlotR.success) {
+        return Buffer.from(getSlotR.returnValue).toString("utf-8");
     }
     return "";
 };

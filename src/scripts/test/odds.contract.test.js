@@ -283,7 +283,7 @@ describe("odds: Yield Bearing Token Testing", function () {
         const betKey = await getBetKey(getBetKeyParams);
         //console.log("betKey", betKey);
         const grid =
-          whichGrid > 1
+          whichGrid > 0
             ? await getSeedBetGrid({
                 appId: slotMachineAppId,
                 seed,
