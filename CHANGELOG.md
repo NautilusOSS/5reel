@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README completely rewritten to accurately represent 5reel slot machine platform
 - Documentation structure improved with clear sections and examples
 
+## [0.1.4] - 2025-08-21
+
+### Changed
+- Removed claim delay mechanism to simplify bet claiming process
+- Eliminated `CLAIM_ROUND_DELAY` constant and related validation logic
+- Simplified bet claiming by removing early claim period restrictions
+
+### Technical Details
+- **Contract Simplification**: Removed 6 lines of claim delay validation code
+- **Improved UX**: Players can now claim bets immediately without waiting for delay period
+- **Code Cleanup**: Eliminated unused `CLAIM_ROUND_DELAY` constant
+
 ## [0.1.3] - 2025-08-21
 
 ### Added
@@ -133,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
 - **0.1.3** (2025-08-21): Comprehensive slot machine testing and contract improvements
 - **0.1.2** (2025-08-19): Enhanced testing and command functionality
 - **0.1.1** (2025-08-18): Documentation and testing improvements
@@ -140,6 +153,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.1.4 - Simplified Claiming
+- Removed claim delay mechanism for immediate bet claiming
+- Simplified contract logic and improved user experience
+- Contract cleanup and optimization
 
 ### v0.1.3 - Testing Excellence
 - Comprehensive test coverage for all contract components
@@ -183,6 +201,7 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 3. **Documentation** (v0.1.1): Comprehensive project documentation
 4. **Enhanced Testing** (v0.1.2): Improved testing infrastructure
 5. **Testing Excellence** (v0.1.3): Comprehensive test coverage
-6. **Documentation Update** (Unreleased): Complete README rewrite
+6. **Simplified UX** (v0.1.4): Removed claim delays and improved user experience
+7. **Documentation Update** (Unreleased): Complete README rewrite
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.
