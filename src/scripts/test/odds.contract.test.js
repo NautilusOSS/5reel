@@ -58,11 +58,12 @@ const PAYOUT_MULTIPLIERS = {
   B: { 3: 40, 4: 200, 5: 1000 }, // Updated from 20, 100, 500
   D: { 3: 25, 4: 100, 5: 400 }, // Updated from 10, 50, 200
   C: { 3: 15, 4: 40, 5: 200 }, // Updated from 5, 20, 100
-  // A: { 3: 25, 4: 100, 5: 500 }, // Updated from 50, 200, 1000
-  // B: { 3: 10, 4: 40, 5: 200 }, // Updated from 20, 100, 500
-  // C: { 3: 5, 4: 20, 5: 100 }, // Updated from 10, 50, 200
-  // D: { 3: 2, 4: 10, 5: 50 }, // Updated from 5, 20, 100
-  _: {},
+  // suggested
+  // A: { 3: 25, 4: 100, 5: 500 },
+  // B: { 3: 10, 4: 40, 5: 200 }, 
+  // C: { 3: 5, 4: 20, 5: 100 }, 
+  // D: { 3: 2, 4: 10, 5: 50 }, 
+  // _: {},
 };
 
 const symbols = ["A", "B", "C", "D"];
@@ -304,7 +305,6 @@ describe("odds: Yield Bearing Token Testing", function () {
 
         let spinWin = false;
         for (const i of Array(paylines.length).keys()) {
-          totalPayout -= 1;
 
           // compute once per payline
           const paylineSymbols = simulateGridPaylineSymbols(grid, paylines[i]);
@@ -343,6 +343,7 @@ describe("odds: Yield Bearing Token Testing", function () {
               bet,
               betKey,
               grid,
+              i,
               paylineSymbols,
               symbol,
               maxCount,
