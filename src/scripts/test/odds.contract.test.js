@@ -54,16 +54,11 @@ function countChar(str, char) {
 
 const PAYOUT_MULTIPLIERS = {
   // current payout multipliers
-  A: { 3: 100, 4: 400, 5: 2000 }, // Updated from 50, 200, 1000
-  B: { 3: 40, 4: 200, 5: 1000 }, // Updated from 20, 100, 500
-  D: { 3: 25, 4: 100, 5: 400 }, // Updated from 10, 50, 200
-  C: { 3: 15, 4: 40, 5: 200 }, // Updated from 5, 20, 100
-  // suggested
-  // A: { 3: 25, 4: 100, 5: 500 },
-  // B: { 3: 10, 4: 40, 5: 200 }, 
-  // C: { 3: 5, 4: 20, 5: 100 }, 
-  // D: { 3: 2, 4: 10, 5: 50 }, 
-  // _: {},
+  A: { 3: 200, 4: 1000, 5: 10000 },
+  B: { 3: 60, 4: 200, 5: 1000 },
+  C: { 3: 30, 4: 100, 5: 500 },
+  D: { 3: 10, 4: 55, 5: 250 },
+  _: {},
 };
 
 const symbols = ["A", "B", "C", "D"];
@@ -305,7 +300,6 @@ describe("odds: Yield Bearing Token Testing", function () {
 
         let spinWin = false;
         for (const i of Array(paylines.length).keys()) {
-
           // compute once per payline
           const paylineSymbols = simulateGridPaylineSymbols(grid, paylines[i]);
           //console.log("paylineSymbols", paylineSymbols);

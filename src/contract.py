@@ -438,11 +438,11 @@ class ReelManager(ReelManagerInterface):
         return Box(Bytes, key="reels").get(
             default=(
                 Bytes(
-                    b"DDD_C___CD_C__C_C__CBDDBC______DD_____D_D_A_DDC_CCDC_D_____BD_DC_C________C__C_C_____B_D_C______C_D_"
-                    + b"_D_D_D___C_____DBC_C_B__D_B_____CAD______D___CDC_CCD__D____CD__C_CCDC___C_C_______C_DBD_D__DC___CD_D"
-                    + b"_CC_DBD__DC_C___DD_BDD___CA__D___CC_DC__DCD__CCC_C_____DC_B_CD__C________D___DB____C_DC_D____D______"
-                    + b"__DCDBCD_DDD___CC____C__C__CCD_C__C_CBDB__C_DC___C__DD_D________D____CAB____D_C__DDD___C_____C_D____"
-                    + b"____DCDCD_D_BBDDC_____CC__D__D__D_______B_CC___D_CD___BCDC__A_______DCD_C__C__D_____D__D___C_C_CDCC_"
+                    b"_CCC__BD___D_____D_____D__DBDDCC_D_C_D__AD_D_CB_C_A_B___B_______DD___D_C_A_____B__C__D______D_______"
+                    + b"C_A_____C__DC_____B__B_CD_B___CD__DAD__C__C______CDD_______C_DA________DDD____CDDD___DB____BD__B____"
+                    + b"___D_D_B_________CD__D__C_C____B__A___CDB__BC_D__D__CD_C_________D___A_DC__B______B_DDDDD_____C_CDA_"
+                    + b"C___C_CDDDDC__D__CCB____D_B__B______D______BD_____A____D_D__AD__D__B___B__C____A____C_D_D___C__CDD__"
+                    + b"_________________CC___DC___DDB_BDADDC______B____C__D___D__CA_______CD__D_D_C_______BD_C_DBA_BDD__CD_"
                 )
             )
         )
@@ -858,7 +858,7 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         ), "spin params must not be initialized"
         Box(SpinParams, key="spin_params").value = SpinParams(
             max_extra_payment=arc4.UInt64(1000000),  # 1 VOI
-            max_payout_multiplier=arc4.UInt64(2000),  # 2000x
+            max_payout_multiplier=arc4.UInt64(10000), # 10000x
             round_future_delta=arc4.UInt64(1),  # 1 round
             min_bet_amount=arc4.UInt64(1 * 10**6),  # 1 VOI
             max_bet_amount=arc4.UInt64(2000 * 10**6),  # 2000 VOI
@@ -1613,20 +1613,20 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     def _get_payout_multiplier(self, pm: PaylineMatch) -> UInt64:
         """
         const PAYOUTS = {
-            A: { 3: 100, 4: 400, 5: 2000 },
-            B: { 3: 40,  4: 200, 5: 1000 },
-            C: { 3: 25,  4: 100, 5: 400 },
-            D: { 3: 15,  4: 50,  5: 200 },
+            A: { 3: 200, 4: 1000, 5: 10000 },
+            B: { 3: 60,  4: 200, 5: 1000 },
+            C: { 3: 30,  4: 100, 5: 500 },
+            D: { 3: 10,  4: 55,  5: 250 },
             _: {}
         };
         """
         if pm.symbol.bytes == Bytes(b"A"):
             if pm.count == UInt64(5):
-                return UInt64(2000)
+                return UInt64(10000)
             elif pm.count == UInt64(4):
-                return UInt64(400)
+                return UInt64(1000)
             elif pm.count == UInt64(3):
-                return UInt64(100)
+                return UInt64(200)
             else:
                 return UInt64(0)
         elif pm.symbol.bytes == Bytes(b"B"):
@@ -1635,25 +1635,25 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             elif pm.count == UInt64(4):
                 return UInt64(200)
             elif pm.count == UInt64(3):
-                return UInt64(40)
+                return UInt64(60)
             else:
                 return UInt64(0)
         elif pm.symbol.bytes == Bytes(b"C"):
             if pm.count == UInt64(5):
-                return UInt64(400)
+                return UInt64(500)
             elif pm.count == UInt64(4):
                 return UInt64(100)
             elif pm.count == UInt64(3):
-                return UInt64(25)
+                return UInt64(30)
             else:
                 return UInt64(0)
         elif pm.symbol.bytes == Bytes(b"D"):
             if pm.count == UInt64(5):
-                return UInt64(200)
+                return UInt64(250)
             elif pm.count == UInt64(4):
-                return UInt64(50)
+                return UInt64(55)
             elif pm.count == UInt64(3):
-                return UInt64(15)
+                return UInt64(10)
             else:
                 return UInt64(0)
         else:  # _
