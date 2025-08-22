@@ -43,7 +43,6 @@ Bytes1: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[1]]
 
 BOX_COST_BALANCE = 28500
 MAX_CLAIM_ROUND_DELTA = 1000
-CLAIM_ROUND_DELAY = 5
 SCALING_FACTOR = 10**12
 
 
@@ -1481,11 +1480,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         assert bet_key in self.bet, "bet not found"
         bet = self.bet[bet_key].copy()
         spin_params = self._spin_params()
-        if (
-            bet.who.native != Txn.sender
-            and Global.round < bet.claim_round.native + UInt64(CLAIM_ROUND_DELAY)
-        ):
-            assert False, "only bet owner can claim during early claim period"
 
         # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
         # and we can return the box cost to the sender
