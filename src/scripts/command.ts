@@ -365,6 +365,9 @@ export const getGrid = async (options: GetGridOptions) => {
   const get_gridR = await ci.get_grid(
     new Uint8Array(Buffer.from(options.seed, "base64"))
   );
+  if (options.debug) {
+    console.log({ get_gridR });
+  }
   return get_gridR;
 };
 
@@ -1597,4 +1600,72 @@ export const ybtGetMaxWithdrawableAmount: any = async (
     console.log(getMaxWithdrawableAmountR);
   }
   return getMaxWithdrawableAmountR.returnValue;
+};
+
+// slot
+
+// address.native, amount.native, max_payline_index.native, index.native
+interface GetBetKeyOptions {
+  appId: number;
+  address: string;
+  amount: Number | BigInt;
+  maxPaylineIndex: Number | BigInt;
+  index: Number | BigInt;
+  addr?: string;
+  sk?: any;
+  debug?: boolean;
+}
+
+export const getBetKey: any = async (options: GetBetKeyOptions) => {
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+  ci.setEnableRawBytes(true);
+  ci.setFee(7000); // TODO set to appropriate amount
+  const getBetKeyR = await ci.get_bet_key(
+    options.address,
+    options.amount,
+    options.maxPaylineIndex,
+    options.index
+  );
+  if (options.debug) {
+    console.log(getBetKeyR);
+  }
+  if (getBetKeyR.success) {
+    return Buffer.from(getBetKeyR.returnValue).toString("base64");
+  }
+  return "";
+};
+
+// slot
+
+interface GetSeedBetGridOptions {
+  appId: number;
+  seed: any;
+  betKey: any;
+  addr?: string;
+  sk?: any;
+  debug?: boolean;
+  simulate?: boolean;
+}
+
+export const getSeedBetGrid: any = async (options: GetSeedBetGridOptions) => {
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+  ci.setEnableRawBytes(true);
+  ci.setFee(7000); // TODO set to appropriate amount
+  const getBetKeyR = await ci.get_seed_bet_grid(
+    new Uint8Array(Buffer.from(options.seed, "base64")),
+    new Uint8Array(Buffer.from(options.betKey, "base64"))
+  );
+  if (options.debug) {
+    console.log(getBetKeyR);
+  }
+  if (getBetKeyR.success) {
+    return Buffer.from(getBetKeyR.returnValue).toString("utf-8");
+  }
+  return "";
 };

@@ -279,6 +279,9 @@ export const getGrid = async (options) => {
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
     ci.setFee(2000);
     const get_gridR = await ci.get_grid(new Uint8Array(Buffer.from(options.seed, "base64")));
+    if (options.debug) {
+        console.log({ get_gridR });
+    }
     return get_gridR;
 };
 export const getReel = async (options) => {
@@ -1083,4 +1086,36 @@ export const ybtGetMaxWithdrawableAmount = async (options) => {
         console.log(getMaxWithdrawableAmountR);
     }
     return getMaxWithdrawableAmountR.returnValue;
+};
+export const getBetKey = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setEnableRawBytes(true);
+    ci.setFee(7000); // TODO set to appropriate amount
+    const getBetKeyR = await ci.get_bet_key(options.address, options.amount, options.maxPaylineIndex, options.index);
+    if (options.debug) {
+        console.log(getBetKeyR);
+    }
+    if (getBetKeyR.success) {
+        return Buffer.from(getBetKeyR.returnValue).toString("base64");
+    }
+    return "";
+};
+export const getSeedBetGrid = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setEnableRawBytes(true);
+    ci.setFee(7000); // TODO set to appropriate amount
+    const getBetKeyR = await ci.get_seed_bet_grid(new Uint8Array(Buffer.from(options.seed, "base64")), new Uint8Array(Buffer.from(options.betKey, "base64")));
+    if (options.debug) {
+        console.log(getBetKeyR);
+    }
+    if (getBetKeyR.success) {
+        return Buffer.from(getBetKeyR.returnValue).toString("utf-8");
+    }
+    return "";
 };

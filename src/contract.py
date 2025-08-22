@@ -921,6 +921,20 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
     def _get_min_bank_amount(self) -> UInt64:
         return self._spin_params().min_bank_amount.native
 
+    @arc4.abimethod
+    def get_bet_key(
+        self,
+        address: arc4.Address,
+        amount: arc4.UInt64,
+        max_payline_index: arc4.UInt64,
+        index: arc4.UInt64,
+    ) -> Bytes56:
+        return Bytes56.from_bytes(
+            self._get_bet_key(
+                address.native, amount.native, max_payline_index.native, index.native
+            )
+        )
+
     @subroutine
     def _get_bet_key(
         self, address: Account, amount: UInt64, max_payline_index: UInt64, index: UInt64
@@ -1128,6 +1142,16 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             arc4.UInt64(top_4),
             arc4.UInt64(top_5),
         )
+
+    @arc4.abimethod(readonly=True)
+    def get_seed_bet_grid(self, seed: Bytes32, bet_key: Bytes56) -> Bytes15:
+        """
+        Returns grid from seed and bet grid
+        """
+        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+        combined = seed.bytes + bet_key.bytes
+        hashed = op.sha256(combined)
+        return Bytes15.from_bytes(self._get_grid(hashed))
 
     @arc4.abimethod(readonly=True)
     def get_grid(self, seed: Bytes32) -> Bytes15:
