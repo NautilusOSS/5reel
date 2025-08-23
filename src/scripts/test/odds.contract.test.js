@@ -69,7 +69,7 @@ function calculatePayout(symbol, matches, betAmount = 1) {
   return multiplier * betAmount;
 }
 
-const lookback = 100;
+const lookback = 1000;
 
 describe("odds: Yield Bearing Token Testing", function () {
   this.timeout(60_000);
