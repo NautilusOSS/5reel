@@ -8,14 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive README documentation update reflecting current project state
-- Project architecture and feature documentation
-- Detailed setup and deployment instructions
-- Security features and contract cost documentation
+- RTP (Return to Player) testing and validation
+- Enhanced reel manager test coverage
+- Improved odds testing accuracy
 
 ### Changed
-- README completely rewritten to accurately represent 5reel slot machine platform
-- Documentation structure improved with clear sections and examples
+- Updated reel and payout model for better game mechanics
+- Enhanced test coverage across multiple contract components
+
+## [0.5] - 2025-08-22
+
+### Added
+- Treasury lock adjustment mechanism using Bet Size * 10,000 VOI
+- Contract versioning with deployment_version=5 for SlotMachine and YieldBearingToken
+- Post_update methods for proper version management after upgrades
+- Comprehensive documentation for YieldBearingToken deposit method
+- Enhanced .gitignore to exclude __pycache__ directories
+
+### Changed
+- Simplified treasury lock calculation from complex payout-based logic to straightforward bet size multiplier
+- Removed unused spin manager bootstrap logic
+- Simplified SpinManager initialization
+- Improved code organization and removed unused code
+
+### Technical Details
+- **Treasury Lock**: Simplified to Bet Size * 10,000 VOI for easier calculation and management
+- **Contract Versioning**: Added deployment_version=5 for tracking contract deployments
+- **Code Cleanup**: 178 lines modified in contract.py with significant improvements
+- **Testing**: Enhanced test coverage across multiple contract components
+- **Documentation**: Added comprehensive YBT deposit method documentation
 
 ## [0.1.4] - 2025-08-21
 
@@ -145,6 +166,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.5** (2025-08-22): Treasury lock adjustment and contract versioning
 - **0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
 - **0.1.3** (2025-08-21): Comprehensive slot machine testing and contract improvements
 - **0.1.2** (2025-08-19): Enhanced testing and command functionality
@@ -153,6 +175,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.5 - Treasury & Versioning
+- Simplified treasury lock mechanism using bet size multiplier
+- Contract versioning for deployment tracking
+- Improved code organization and cleanup
+- Enhanced testing coverage
 
 ### v0.1.4 - Simplified Claiming
 - Removed claim delay mechanism for immediate bet claiming
@@ -202,6 +230,8 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 4. **Enhanced Testing** (v0.1.2): Improved testing infrastructure
 5. **Testing Excellence** (v0.1.3): Comprehensive test coverage
 6. **Simplified UX** (v0.1.4): Removed claim delays and improved user experience
-7. **Documentation Update** (Unreleased): Complete README rewrite
+7. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.
+
+8. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
