@@ -983,9 +983,7 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         # assert max payline index is less than max index
         self._increment_balance_total(expected_payment_amount)
         self._increment_balance_available(expected_payment_amount)
-        lockup_amount = self._lockup_amount(
-            bet_amount * (max_payline_index + UInt64(1))
-        )
+        lockup_amount = self._lockup_amount(bet_amount)
         self._increment_balance_locked(lockup_amount)
         self._decrement_balance_available(lockup_amount)
         # Create bet
@@ -1030,7 +1028,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(5)
+        self.deployment_version = UInt64(6)
         self.updatable = bool(1)
 
     @arc4.abimethod
@@ -1040,7 +1038,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(5)
+        self.deployment_version = UInt64(6)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1478,7 +1476,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert bet_key in self.bet, "bet not found"
         bet = self.bet[bet_key].copy()
-        spin_params = self._spin_params()
 
         # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
         # and we can return the box cost to the sender
@@ -1486,10 +1483,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             del self.bet[bet_key]
             # Update balance tracking
             #   Release locked balance and adjust available balance
-            remaining_paylines = (
-                bet.max_payline_index.native - bet.payline_index.native + UInt64(1)
-            )
-            lockup_release = self._lockup_amount(bet.amount.native * remaining_paylines)
+            lockup_release = self._lockup_amount(bet.amount.native)
             self._decrement_balance_locked(lockup_release)
             self._increment_balance_available(lockup_release)
             itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
@@ -1530,17 +1524,18 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             #########################################################
             # Update balance tracking
             #   Release locked balance and adjust available balance
-            lockup_release = self._lockup_amount(
-                bet.amount.native
-            )  # Release for this single payline
-            self._decrement_balance_locked(lockup_release)
-            self._increment_balance_available(lockup_release - payout.native)
             self._decrement_balance_total(payout.native)
             # TODO branch on payline index
             if payout > 0:
                 itxn.Payment(receiver=bet.who.native, amount=payout.native).submit()
+
             if bet.payline_index.native + UInt64(1) > bet.max_payline_index.native:
                 del self.bet[bet_key]
+                lockup_release = self._lockup_amount(
+                    bet.amount.native
+                )  # Release for this single payline
+                self._decrement_balance_locked(lockup_release)
+                self._increment_balance_available(lockup_release - payout.native)
                 itxn.Payment(
                     receiver=Txn.sender,
                     amount=self._spin_cost() + self._spin_payline_cost(),
