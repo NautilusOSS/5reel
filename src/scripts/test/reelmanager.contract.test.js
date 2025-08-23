@@ -16,6 +16,7 @@ import {
   getReel,
   getReels,
   getSlot,
+  getReelWindow,
 } from "../command.js";
 
 const acc = {
@@ -182,12 +183,21 @@ describe("reelman: Bank Manager Testing", function () {
   });
 
   it("Should get reel window", async function () {
-    const window = await getReelWindow({
-      appId,
-      reel: 0,
-      index: 0,
-      ...acc,
-    });
-    expect(window).to.equal(reels[0][0]);
+    for (const i of [0, 1, 2, 3, 4]) {
+      for (const j of Array(100).keys()) {
+        const window = await getReelWindow({
+          appId,
+          reel: i,
+          index: j,
+          ...acc,
+        });
+        console.log(window);
+        expect(window).to.equal(
+          reels[i][(j + 0) % 100].slice(0, 3) +
+            reels[i][(j + 1) % 100].slice(0, 3) +
+            reels[i][(j + 2) % 100].slice(0, 3)
+        );
+      }
+    }
   });
 });

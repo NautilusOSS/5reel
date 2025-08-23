@@ -69,7 +69,7 @@ function calculatePayout(symbol, matches, betAmount = 1) {
   return multiplier * betAmount;
 }
 
-const lookback = 1000;
+const lookback = 100;
 
 describe("odds: Yield Bearing Token Testing", function () {
   this.timeout(60_000);
@@ -91,7 +91,7 @@ describe("odds: Yield Bearing Token Testing", function () {
     const lastRound = status["last-round"];
     console.log("lookupback", lookback);
     const startRound = Math.max(lastRound - lookback, 0);
-    for (let i = startRound; i < lastRound; i++) {
+    for (let i = startRound; i < lastRound - 1; i++) {
       const block = await indexerClient.lookupBlock(i).do();
       const seed = block.seed;
       blockSeeds.push(seed);

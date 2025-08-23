@@ -24,6 +24,7 @@ import {
   spin,
   invalidBetKey,
   ybtGetMaxWithdrawableAmount,
+  ybtGetDepositCost,
 } from "../command.js";
 import algosdk from "algosdk";
 import BigNumber from "bignumber.js";
@@ -53,14 +54,6 @@ describe("ybt: Yield Bearing Token Testing", function () {
       debug: false,
     });
     appId = id0;
-    // deploy slot machine
-    const { appId: id1 } = await deploy({
-      type: "SlotMachine",
-      name: "SlotMachine",
-      ...acc,
-      debug: false,
-    });
-    slotMachineAppId = id1;
     // bootstrap ybt
     await bootstrap({
       appId,
@@ -84,6 +77,14 @@ describe("ybt: Yield Bearing Token Testing", function () {
       appId,
     });
     console.log("symbol", symbol);
+    // deploy slot machine
+    const { appId: id1 } = await deploy({
+      type: "SlotMachine",
+      name: "SlotMachine",
+      ...acc,
+      debug: false,
+    });
+    slotMachineAppId = id1;
     // bootstrap slot machine
     await bootstrap({
       appId: slotMachineAppId,
@@ -140,16 +141,17 @@ describe("ybt: Yield Bearing Token Testing", function () {
     const balanceBefore = await getAccountBalance(
       algosdk.getApplicationAddress(slotMachineAppId)
     );
-    const depositAmount = 1000e6;
+    const depositAmount = 1e6;
     await ybtDeposit({
       appId,
       amount: depositAmount,
       ...acc,
-      debug: true,
     });
     const balanceAfter = await getAccountBalance(
       algosdk.getApplicationAddress(slotMachineAppId)
     );
+    console.log("balanceBefore", balanceBefore);
+    console.log("balanceAfter", balanceAfter);
     expect(balanceAfter).to.equal(balanceBefore + depositAmount);
   });
   it("Should deposit and receive shares", async function () {
@@ -543,37 +545,43 @@ describe("ybt: Yield Bearing Token Testing", function () {
     expect(Math.round(pct2 * 100)).to.equal(95);
     expect(Math.round(pct4 * 100)).to.equal(5);
   });
-  it("Should withdraw", async function () {
+  it("Should withdraw with no active bets", async function () {
     const acc2 = await getAccount();
-    await fund(acc2.addr, 100e6);
-    const depositR = await ybtDeposit({
-      appId,
-      amount: 100e6 - 1e6,
-      ...acc2,
-      debug: true,
-    });
-    const balanceBefore = await arc200BalanceOf({
+    await fund(acc2.addr, 1_000_000e6);
+    const balance0 = await arc200BalanceOf({
       appId,
       address: acc2.addr,
     });
-    const withdrawAmount = balanceBefore;
+    const depositR = await ybtDeposit({
+      appId,
+      amount: 1_000_000e6 - 100e6,
+      ...acc2,
+    });
+    const balance1 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const withdrawAmount = balance1;
     const withdrawR = await ybtWithdraw({
       appId,
       amount: withdrawAmount,
       ...acc2,
-      debug: true,
     });
-    const expectedBalanceAfter = balanceBefore - BigInt(withdrawAmount);
-    const balanceAfter = await arc200BalanceOf({
+    const expectedBalanceAfter = balance1 - BigInt(withdrawAmount);
+    const balance2 = await arc200BalanceOf({
       appId,
       address: acc2.addr,
     });
+    console.log("depositR", depositR.returnValue);
     console.log("withdrawR", withdrawR.returnValue);
-    console.log("balanceBefore", balanceBefore);
-    console.log("balanceAfter", balanceAfter);
+    console.log("balance0", balance0);
+    console.log("balance1", balance1);
+    console.log("balance2", balance2);
     expect(withdrawR.success).to.be.true;
     expect(depositR.success).to.be.true;
-    expect(balanceAfter).to.equal(expectedBalanceAfter);
+    expect(balance0).to.equal(BigInt(0));
+    expect(balance1).to.equal(withdrawAmount);
+    expect(balance2).to.equal(expectedBalanceAfter);
   });
 
   it("Should withdraw with active bets", async function () {
@@ -588,7 +596,7 @@ describe("ybt: Yield Bearing Token Testing", function () {
     });
     const betKey = await spin({
       appId: slotMachineAppId,
-      betAmount: 100e6, // lock up min(2M, 200k) (10%)
+      betAmount: 1e6, // lock up 10k VOI
       maxPaylineIndex: 19,
       index: 0,
       ...acc2,
@@ -664,19 +672,29 @@ describe("ybt: Yield Bearing Token Testing", function () {
   it("Should cap lockup", async function () {
     const acc2 = await getAccount();
     await fund(acc2.addr, 1_000_000e6 * 2);
+    const balance0 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
     const depositR = await ybtDeposit({
       appId,
-      amount: 1_000_000e6 - 1e6,
+      amount: 1_000_000e6,
       ...acc2,
+      debug: true,
+    });
+    const balance1 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
     });
     await spin({
       appId: slotMachineAppId,
-      betAmount: 100e6, // would lockup 4M but cap is 200k
+      betAmount: 1e6 + 1, // 100 VOI locks up 100 * 10,000 VOI = 1M VOI
       maxPaylineIndex: 19,
       index: 0,
       ...acc2,
+      debug: true,
     });
-    const balance = await arc200BalanceOf({
+    const balance3 = await arc200BalanceOf({
       appId,
       address: acc2.addr,
     });
@@ -686,13 +704,97 @@ describe("ybt: Yield Bearing Token Testing", function () {
     });
     const pctWithdrawable = BigInt(
       new BigNumber(maxWithdrawableAmount)
-        .div(balance)
+        .div(balance3)
         .multipliedBy(100)
         .toFixed(0)
     );
-    console.log("balance", balance);
+    console.log("balance0", balance0);
+    console.log("balance1", balance1);
+    console.log("balance3", balance3);
     console.log("maxWithdrawableAmount", maxWithdrawableAmount);
     console.log("pctWithdrawable", pctWithdrawable);
+    expect(depositR.success).to.be.true;
     expect(pctWithdrawable).to.equal(BigInt(80)); // 80% of the balance is withdrawable
+  });
+
+  it("Should deposit with box payment on first deposit and when balance is zero", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 10e6);
+    console.log("addr", acc2.addr);
+    const balance0 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const deposit_costR1 = await ybtGetDepositCost({
+      appId,
+      ...acc2,
+    });
+    const depositR = await ybtDeposit({
+      appId,
+      amount: 1e6,
+      ...acc2,
+    });
+    const deposit_costR2 = await ybtGetDepositCost({
+      appId,
+      ...acc2,
+    });
+    const balance1 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const depositR2 = await ybtDeposit({
+      appId,
+      amount: 1e6,
+      ...acc2,
+    });
+    const balance2 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const withdrawR1 = await ybtWithdraw({
+      appId,
+      amount: balance2,
+      ...acc2,
+    });
+    const balance3 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    const deposit_costR3 = await ybtGetDepositCost({
+      appId,
+      ...acc2,
+    });
+    const depositR3 = await ybtDeposit({
+      appId,
+      amount: 1e6,
+      ...acc2,
+    });
+    const balance4 = await arc200BalanceOf({
+      appId,
+      address: acc2.addr,
+    });
+    console.log("deposit_costR1", deposit_costR1);
+    console.log("deposit_costR2", deposit_costR2);
+    console.log("deposit_costR3", deposit_costR3);
+    console.log("balance0", balance0);
+    console.log("balance1", balance1);
+    console.log("balance2", balance2);
+    console.log("balance3", balance3);
+    console.log("balance4", balance4);
+    console.log("depositR", depositR.returnValue);
+    console.log("depositR2", depositR2.returnValue);
+    console.log("withdrawR1", withdrawR1.returnValue);
+    expect(deposit_costR1).to.equal(BigInt(28500));
+    expect(deposit_costR2).to.equal(BigInt(0));
+    expect(deposit_costR3).to.equal(BigInt(0));
+    expect(depositR.success).to.be.true;
+    expect(depositR2.success).to.be.true;
+    expect(withdrawR1.success).to.be.true;
+    expect(depositR3.success).to.be.true;
+    expect(Number(depositR.returnValue)).to.equal(1e6);
+    expect(Number(depositR2.returnValue)).to.equal(1e6);
+    expect(balance2).to.equal(balance1 + BigInt(1e6));
+    expect(balance3).to.equal(BigInt(0));
+    expect(balance4).to.equal(BigInt(1e6));
   });
 });

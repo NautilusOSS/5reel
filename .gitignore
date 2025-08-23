@@ -6,3 +6,4 @@ artifacts
 *.json
 commands
 out
+__pycache__

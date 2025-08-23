@@ -27,6 +27,14 @@ from opensubmarine import (
 )
 from opensubmarine.utils.algorand import require_payment
 
+#
+# TODO
+# - [x] - adjust treasury lock to be Bet Size * 10,000 VOI
+# - [x] - add contract versioning to sell which contract is deployed
+# - [ ] - test to make sure the whole reel is being used
+# - [ ] - test to make sure it is paying out
+#
+
 # =============================================================================
 # TYPE ALIASES
 # =============================================================================
@@ -300,7 +308,6 @@ class ReelManagerInterface(ARC4Contract):
         """
         return Bytes()
 
-    # unused
     @arc4.abimethod(readonly=True)
     def get_slot(self, reel: arc4.UInt64, index: arc4.UInt64) -> Bytes1:
         """
@@ -363,7 +370,6 @@ class ReelManager(ReelManagerInterface):
         reel_length = self._get_reel_length()
         return self._get_reels()[index * reel_length : (index + 1) * reel_length]
 
-    # unused
     # override
     @arc4.abimethod(readonly=True)
     def get_slot(self, reel: arc4.UInt64, index: arc4.UInt64) -> Bytes1:
@@ -837,59 +843,25 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
     # override
     @subroutine
     def _bootstrap(self) -> None:
-        self._spin_manager_bootstrap()
+        pass
 
     # override
     @subroutine
     def _bootstrap_cost(self) -> UInt64:
-        return Global.min_balance + self._spin_manager_bootstrap_cost()
+        return Global.min_balance
+
+    # --- implementation ---
 
     @subroutine
-    def _spin_manager_bootstrap(self) -> None:
-        self._initialize_spin_params()
-
-    @subroutine
-    def _spin_manager_bootstrap_cost(self) -> UInt64:
-        return UInt64(26500)
-
-    @subroutine
-    def _initialize_spin_params(self) -> None:
-        self._only_owner()
-        assert (
-            not self._spin_params().spin_fuse.native
-        ), "spin params must not be initialized"
-        Box(SpinParams, key="spin_params").value = SpinParams(
-            max_extra_payment=arc4.UInt64(1000000),  # 1 VOI
-            max_payout_multiplier=arc4.UInt64(10000), # 10000x
+    def _spin_params(self) -> SpinParams:
+        return SpinParams(
+            max_extra_payment=arc4.UInt64(1 * 10**6),  # 1 VOI
+            max_payout_multiplier=arc4.UInt64(10000),  # 10000x
             round_future_delta=arc4.UInt64(1),  # 1 round
             min_bet_amount=arc4.UInt64(1 * 10**6),  # 1 VOI
             max_bet_amount=arc4.UInt64(2000 * 10**6),  # 2000 VOI
             min_bank_amount=arc4.UInt64(100000000000),  # 100k VOI
             spin_fuse=arc4.Bool(True),
-        )
-
-    # --- implementation ---
-
-    @subroutine
-    def _invalid_spin_params(self) -> SpinParams:
-        return SpinParams(
-            max_extra_payment=arc4.UInt64(0),
-            max_payout_multiplier=arc4.UInt64(0),
-            round_future_delta=arc4.UInt64(0),
-            min_bet_amount=arc4.UInt64(0),
-            max_bet_amount=arc4.UInt64(0),
-            min_bank_amount=arc4.UInt64(0),
-            spin_fuse=arc4.Bool(False),
-        )
-
-    @arc4.abimethod
-    def spin_params(self) -> SpinParams:
-        return self._spin_params()
-
-    @subroutine
-    def _spin_params(self) -> SpinParams:
-        return Box(SpinParams, key="spin_params").get(
-            default=self._invalid_spin_params()
         )
 
     @subroutine
@@ -962,12 +934,8 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         return UInt64(30000)
 
     @subroutine
-    def _get_lockup_cap(self) -> UInt64:
-        return UInt64(200_000 * 10**6)
-
-    @subroutine
-    def _minUInt64(self, a: UInt64, b: UInt64) -> UInt64:
-        return a if a < b else b
+    def _lockup_amount(self, bet_amount: UInt64) -> UInt64:
+        return bet_amount * UInt64(10_000)  # Bet Size * 10,000
 
     @subroutine
     def _spin(
@@ -1015,11 +983,9 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         # assert max payline index is less than max index
         self._increment_balance_total(expected_payment_amount)
         self._increment_balance_available(expected_payment_amount)
-        lockup_cap = self._get_lockup_cap()
-        max_possible_payout = (
-            expected_payment_amount * self._get_max_payout_multiplier()
+        lockup_amount = self._lockup_amount(
+            bet_amount * (max_payline_index + UInt64(1))
         )
-        lockup_amount = self._minUInt64(max_possible_payout, lockup_cap)
         self._increment_balance_locked(lockup_amount)
         self._decrement_balance_available(lockup_amount)
         # Create bet
@@ -1063,9 +1029,18 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     def __init__(self) -> None:
         # upgradeable state
         self.upgrader = Global.creator_address
-        self.contract_version = UInt64()
-        self.deployment_version = UInt64()
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(5)
         self.updatable = bool(1)
+
+    @arc4.abimethod
+    def post_update(self) -> None:
+        """
+        Post upgrade
+        """
+        assert Txn.sender == self.upgrader, "must be upgrader"
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(5)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1081,7 +1056,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     @subroutine
     def _bootstrap(self) -> None:
         self._bank_manager_bootstrap()
-        self._spin_manager_bootstrap()
         self._ownable_bootstrap()
 
     # override
@@ -1090,7 +1064,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         return (
             Global.min_balance
             + self._bank_manager_bootstrap_cost()
-            + self._spin_manager_bootstrap_cost()
             + self._ownable_bootstrap_cost()
         )
 
@@ -1516,13 +1489,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             remaining_paylines = (
                 bet.max_payline_index.native - bet.payline_index.native + UInt64(1)
             )
-            lockup_cap = self._get_lockup_cap()
-            max_possible_payout = (
-                bet.amount.native
-                * remaining_paylines
-                * spin_params.max_payout_multiplier.native
-            )
-            lockup_release = self._minUInt64(max_possible_payout, lockup_cap)
+            lockup_release = self._lockup_amount(bet.amount.native * remaining_paylines)
             self._decrement_balance_locked(lockup_release)
             self._increment_balance_available(lockup_release)
             itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
@@ -1563,11 +1530,9 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             #########################################################
             # Update balance tracking
             #   Release locked balance and adjust available balance
-            lockup_cap = self._get_lockup_cap()
-            max_possible_payout = (
-                bet.amount.native * spin_params.max_payout_multiplier.native
-            )
-            lockup_release = self._minUInt64(max_possible_payout, lockup_cap)
+            lockup_release = self._lockup_amount(
+                bet.amount.native
+            )  # Release for this single payline
             self._decrement_balance_locked(lockup_release)
             self._increment_balance_available(lockup_release - payout.native)
             self._decrement_balance_total(payout.native)
@@ -1676,8 +1641,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         self.totalSupply = BigUInt()
         # upgradeable state
         self.upgrader = Global.creator_address
-        self.contract_version = UInt64()
-        self.deployment_version = UInt64()
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(5)
         self.updatable = bool(1)
         # stakeable state
         self.delegate = Account()
@@ -1693,6 +1658,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         Post upgrade
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(5)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1832,15 +1799,41 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
 
     @arc4.abimethod
     def deposit(self) -> arc4.UInt256:
+        """
+        Deposit funds into the yield-bearing token contract.
+
+        This method accepts a payment from the sender, forwards the deposit amount
+        to the yield-bearing source (slot machine), and mints shares proportional
+        to the underlying assets. New users pay for balance box storage costs.
+
+        The share calculation uses the total assets balance from BEFORE the deposit
+        to prevent share inflation from the user's own deposit.
+
+        Args:
+            None (payment is extracted from the transaction)
+
+        Returns:
+            arc4.UInt256: The number of shares minted to the sender
+
+        Raises:
+            AssertionError: If yield bearing source is not set
+            AssertionError: If payment is insufficient to cover box costs
+            AssertionError: If calculated deposit amount is zero or negative
+
+        Note:
+            - First-time depositors pay for balance box storage (28500 microAlgos)
+            - Existing users only pay for the actual deposit amount
+            - Shares are minted based on the ratio of deposit to total assets
+        """
         # Validate inputs
         assert self.yield_bearing_source > 0, "yield bearing source not set"
 
         # Check payment
         payment = require_payment(Txn.sender)
         balance_box_cost = self._deposit_cost()
-        assert payment > balance_box_cost, "payment insufficient"
+        assert payment >= balance_box_cost, "payment insufficient"
         deposit_amount = (
-            payment if self._balanceOf(Txn.sender) > 0 else payment - balance_box_cost
+            payment if self._has_balance(Txn.sender) else payment - balance_box_cost
         )
         assert deposit_amount > 0, "deposit amount must be greater than 0"
 
@@ -1867,20 +1860,47 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
 
     @subroutine
     def _deposit_cost(self) -> UInt64:
-        return UInt64(28500)
+        return UInt64(28500) if not self._has_balance(Txn.sender) else UInt64(0)
+
+    @subroutine
+    def _has_balance(self, who: Account) -> bool:
+        return self.balances.get(
+            key=who, default=self.totalSupply + BigUInt(1)
+        ) != self.totalSupply + BigUInt(1)
 
     @subroutine
     def _mint(self, amount: BigUInt, total_assets: UInt64) -> BigUInt:
         """
-        Mint tokens based on prior balance (before deposit was forwarded)
+        Mint yield-bearing tokens (shares) proportional to the deposit amount.
+
+        This method calculates the number of shares to mint based on the ratio of
+        the deposit amount to the total assets in the yield-bearing source. The
+        calculation uses a scaling factor to maintain precision during integer
+        division operations.
+
+        Args:
+            amount: The deposit amount in atomic units (e.g., microAlgos)
+            total_assets: The total assets in the yield-bearing source before this deposit
+
+        Returns:
+            BigUInt: The number of shares minted to the sender
+
+        Note:
+            - For the first deposit (when totalSupply == 0), shares = amount
+            - For subsequent deposits, shares = (amount * totalSupply * SCALING_FACTOR) / (total_assets * SCALING_FACTOR)
+            - The scaling factor (10^12) prevents precision loss during integer division
+            - This ensures fair share distribution regardless of deposit size
         """
         # If no shares, mint the full amount
         # Else use total_assets instead of querying current balance
         shares = (
             amount
             if self.totalSupply == 0
-            else (amount * self.totalSupply) // BigUInt(total_assets)
+            else (amount * self.totalSupply * SCALING_FACTOR)
+            // (BigUInt(total_assets) * SCALING_FACTOR)
         )
+        # REM make sure not to multiple total_assets and SCALING_FACTOR
+        # because it will overflow
         # Ensure minimum shares are minted to prevent dust deposits
         assert shares > 0, "Deposit amount too small"
         # Update state
@@ -1924,9 +1944,9 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         # Calculate how much of the user's requested amount can actually be withdrawn
         # based on the proportion of available balance
         # Use scaling factor to maintain precision in integer arithmetic
-        max_withdrawable = (balance * BigUInt(available_balance.native)) // BigUInt(
-            total_balance
-        )
+        max_withdrawable = (
+            balance * BigUInt(available_balance.native) * SCALING_FACTOR
+        ) // (BigUInt(total_balance) * SCALING_FACTOR)
         return max_withdrawable
 
     @arc4.abimethod

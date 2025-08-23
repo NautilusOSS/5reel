@@ -10,6 +10,11 @@ import { CONTRACT } from "ulujs";
 import * as dotenv from "dotenv";
 import * as crypto from "crypto";
 dotenv.config({ path: ".env" });
+//
+// TODO
+// - [ ] - construct functions that builds payout multipliers for each symbol
+//         based on the payout multipliers in the contract
+//
 // function that takes string and returns a Uint8Array of size 256
 export function stringToUint8Array(str, length) {
     if (str.length > length)
@@ -383,7 +388,7 @@ export const spin = async (options) => {
     ci.setPaymentAmount(paymentAmount);
     const spinR = await ci.spin(options.betAmount, options.maxPaylineIndex, options.index);
     if (options.debug) {
-        console.log(spinR);
+        console.log({ spinR });
     }
     if (spinR.success) {
         if (!options.simulate) {
@@ -732,8 +737,8 @@ export const ybtDeposit = async (options) => {
     const ybt_deposit_costR = await ci.deposit_cost();
     const ybt_deposit_cost = ybt_deposit_costR.returnValue;
     console.log("ybt_deposit_cost", ybt_deposit_cost);
-    const paymentAmount = Number(options.amount) +
-        (Number(ybt_balance) === 0 ? Number(ybt_deposit_cost) : 0);
+    const paymentAmount = Number(options.amount) + Number(ybt_deposit_cost);
+    console.log("options.amount", options.amount);
     console.log("paymentAmount", paymentAmount);
     ci.setFee(4000);
     ci.setPaymentAmount(paymentAmount);
@@ -1139,4 +1144,15 @@ export const getSlot = async (options) => {
         return Buffer.from(getSlotR.returnValue).toString("utf-8");
     }
     return "";
+};
+export const ybtGetDepositCost = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, YieldBearingTokenAppSpec, acc);
+    const getDepositCostR = await ci.deposit_cost();
+    if (options.debug) {
+        console.log(getDepositCostR);
+    }
+    return getDepositCostR.returnValue;
 };

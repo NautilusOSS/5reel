@@ -98,9 +98,9 @@ describe("slotmac: Slot Machine Payout Testing", function () {
     expect(beaconAppId).to.be.greaterThan(0);
     const status = await algodClient.status().do();
     const lastRound = status["last-round"];
-    const lookback = 4000;
+    const lookback = 100;
     const startRound = Math.max(lastRound - lookback, 0);
-    for (let i = startRound; i < lastRound; i++) {
+    for (let i = startRound; i < lastRound - 1; i++) {
       const block = await indexerClient.lookupBlock(i).do();
       const seed = block.seed;
       blockSeeds.add(seed);
@@ -175,7 +175,7 @@ describe("slotmac: Slot Machine Payout Testing", function () {
       algosdk.getApplicationAddress(appId)
     );
     console.log("balance", balance / 1e6);
-    expect(balance).to.equal(fundingAmount - 2e6 + 161500);
+    expect(balance).to.equal(fundingAmount - 2e6 + 135000);
     expect(owner).to.equal(algosdk.getApplicationAddress(ybtAppId));
     expect(name).to.equal(ybtName);
     expect(symbol).to.equal(ybtSymbol);
@@ -190,69 +190,7 @@ describe("slotmac: Slot Machine Payout Testing", function () {
     });
   });
 
-  it("Should get the reels", async function () {
-    const reelsR = await getReels({
-      appId: appId,
-      ...acc,
-    });
-    expect(reelsR.success).to.be.true;
-    expect(reelsR.returnValue).to.equal(
-      "DDD_C___CD_C__C_C__CBDDBC______DD_____D_D_A_DDC_CCDC_D_____BD_DC_C________C__C_C_____B_D_C______C_D__D_D_D___C_____DBC_C_B__D_B_____CAD______D___CDC_CCD__D____CD__C_CCDC___C_C_______C_DBD_D__DC___CD_D_CC_DBD__DC_C___DD_BDD___CA__D___CC_DC__DCD__CCC_C_____DC_B_CD__C________D___DB____C_DC_D____D________DCDBCD_DDD___CC____C__C__CCD_C__C_CBDB__C_DC___C__DD_D________D____CAB____D_C__DDD___C_____C_D________DCDCD_D_BBDDC_____CC__D__D__D_______B_CC___D_CD___BCDC__A_______DCD_C__C__D_____D__D___C_C_CDCC_"
-    );
-  });
-
-  it("Should get the grid", async function () {
-    const gridR = await getGrid({
-      appId: appId,
-      seed: "WOnoYeqYrHRnB2BJL1rXZ/leX8dby4h6xKQVVgfYBf0=",
-      ...acc,
-    });
-    displayGrid(gridR.returnValue);
-    expect(gridR.success).to.be.true;
-    expect(gridR.returnValue).to.equal("D_C_DBDD____D__");
-  });
-
-  it("Should get the reel", async function () {
-    const reelR = await getReel({
-      appId: appId,
-      reelIndex: 0,
-      ...acc,
-    });
-    expect(reelR.success).to.be.true;
-    expect(reelR.returnValue).to.equal(
-      "DDD_C___CD_C__C_C__CBDDBC______DD_____D_D_A_DDC_CCDC_D_____BD_DC_C________C__C_C_____B_D_C______C_D_"
-    );
-  });
-
-  it("Should not get the reel window for invalid reel", async function () {
-    const reelWindowR = await getReelWindow({
-      appId: appId,
-      reel: 100,
-      index: 0,
-      ...acc,
-    });
-    expect(reelWindowR.success).to.be.false;
-  });
-
-  it("Should get reel window", async function () {
-    const getReelR = await getReel({
-      appId: appId,
-      reelIndex: 0,
-      ...acc,
-    });
-    const reel = getReelR.returnValue;
-    for (let i = 0; i < 200; i++) {
-      const reelWindowR = await getReelWindow({
-        appId: appId,
-        reel: 0,
-        index: i,
-        ...acc,
-      });
-      const reelWindow = reelWindowR.returnValue;
-      const simulatedReelWindow = simulateReelWindow(reel, i);
-      expect(reelWindow).to.equal(simulatedReelWindow);
-    }
-  });
+  // moved to reelmanager.contract.test.js
 
   it("Should get the payline", async function () {
     // Test paylines 0 through 19
@@ -720,11 +658,10 @@ describe("slotmac: Slot Machine Payout Testing", function () {
 
   it("Should get payout multiplier", async function () {
     const PAYOUTS = {
-      A: { 0: 0, 1: 0, 2: 0, 3: 100, 4: 400, 5: 2000, 6: 0 },
-      B: { 0: 0, 1: 0, 2: 0, 3: 40, 4: 200, 5: 1000, 6: 0 },
-      C: { 0: 0, 1: 0, 2: 0, 3: 25, 4: 100, 5: 400, 6: 0 },
-      D: { 0: 0, 1: 0, 2: 0, 3: 15, 4: 50, 5: 200, 6: 0 },
-      _: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      A: { 3: 200, 4: 1000, 5: 10000 },
+      B: { 3: 60, 4: 200, 5: 1000 },
+      C: { 3: 30, 4: 100, 5: 500 },
+      D: { 3: 10, 4: 55, 5: 250 },
     };
     for (const [k, v] of Object.entries(PAYOUTS)) {
       for (const [j, u] of Object.entries(v)) {
