@@ -53,6 +53,7 @@ import {
   indexerClient,
   getGridPaylineSymbols,
   simulateGridPaylineSymbols,
+  getBalances,
   //getPaylineCount,
 } from "../command.js";
 
@@ -174,6 +175,12 @@ describe("slotmac: Slot Machine Payout Testing", function () {
     const balance = await getAccountBalance(
       algosdk.getApplicationAddress(appId)
     );
+    // add this so that bank total balance matches up to 1M
+    await ybtDeposit({
+      appId: ybtAppId,
+      amount: 2e6,
+      ...acc,
+    });
     console.log("balance", balance / 1e6);
     expect(balance).to.equal(fundingAmount - 2e6 + 135000);
     expect(owner).to.equal(algosdk.getApplicationAddress(ybtAppId));
@@ -716,5 +723,112 @@ describe("slotmac: Slot Machine Payout Testing", function () {
     // Test CLAIM_ROUND_DELAY (5 rounds)
     // Test MAX_CLAIM_ROUND_DELTA (1000 rounds)
     // Test expired bet handling
+  });
+
+  it("Should unlock balance on claim incrementally", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    const bankBalancesR0 = await getBalances({
+      appId,
+    });
+    console.log(bankBalancesR0);
+    const spinCost = 20e6;
+    const betAmount = 1e6;
+    const expectedLockedBalance = betAmount * 10_000;
+    const betKey = await spin({
+      appId: appId,
+      betAmount: 1e6,
+      maxPaylineIndex: 19,
+      index: 0,
+      ...acc2,
+    });
+    const bankBalancesR1 = await getBalances({
+      appId,
+      ...acc2,
+    });
+    let bankBalancesR2;
+    let claimed = BigInt(0);
+    for (let i = 0; i < 20; i++) {
+      let claimR0;
+      do {
+        process.stdout.write(".");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await touch({ appId: beaconAppId });
+        claimR0 = await claim({
+          appId,
+          betKey,
+          ...acc2,
+        });
+      } while (!claimR0.success);
+      console.log("");
+      bankBalancesR2 = await getBalances({
+        appId,
+        ...acc2,
+      });
+      console.log({
+        bankBalancesR2,
+      });
+      claimed += claimR0.returnValue;
+      expect(claimR0.success).to.be.true;
+    }
+    const claimR1 = await claim({
+      appId,
+      betKey,
+      ...acc2,
+    });
+    console.log({
+      betKey,
+      bankBalancesR0,
+      bankBalancesR1,
+      bankBalancesR2,
+      claimed,
+    });
+    expect(claimR1.success).to.be.false;
+    expect(bankBalancesR0.balanceAvailable).to.equal(1e6);
+    expect(bankBalancesR0.balanceTotal).to.equal(1e6);
+    expect(bankBalancesR0.balanceLocked).to.equal(0);
+    expect(bankBalancesR1.balanceAvailable).to.equal(
+      bankBalancesR0.balanceAvailable - (expectedLockedBalance - spinCost) / 1e6
+    );
+    expect(bankBalancesR1.balanceTotal).to.equal(
+      bankBalancesR0.balanceTotal + spinCost / 1e6
+    );
+  });
+
+  it("Should payout winning bets", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    let win = false;
+    do {
+      const betKey = await spin({
+        appId: appId,
+        betAmount: 1e6,
+        maxPaylineIndex: 19,
+        index: 0,
+        ...acc2,
+      });
+      for (let i = 0; i < 20; i++) {
+        let claimR0;
+        do {
+          process.stdout.write(".");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await touch({ appId: beaconAppId });
+          claimR0 = await claim({
+            appId,
+            betKey,
+            ...acc2,
+            debug: true,
+          });
+          if (claimR0.returnValue > BigInt(0)) {
+            console.log("Claimed", claimR0.returnValue);
+            win = true;
+            break;
+          }
+        } while (!claimR0.success);
+        if (win) {
+          break;
+        }
+      }
+    } while (!win);
   });
 });

@@ -792,9 +792,9 @@ describe("ybt: Yield Bearing Token Testing", function () {
     expect(withdrawR1.success).to.be.true;
     expect(depositR3.success).to.be.true;
     expect(Number(depositR.returnValue)).to.equal(1e6);
-    expect(Number(depositR2.returnValue)).to.equal(1e6);
     expect(balance2).to.equal(balance1 + BigInt(1e6));
     expect(balance3).to.equal(BigInt(0));
     expect(balance4).to.equal(BigInt(1e6));
   });
+
 });

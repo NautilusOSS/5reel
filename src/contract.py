@@ -510,6 +510,18 @@ class BankManagerInterface(ARC4Contract):
         pass
 
     @arc4.abimethod(readonly=True)
+    def get_balances(self) -> BankBalances:
+        """
+        Get the balance fuse
+        """
+        return BankBalances(
+            balance_available=arc4.UInt64(0),
+            balance_total=arc4.UInt64(0),
+            balance_locked=arc4.UInt64(0),
+            balance_fuse=arc4.Bool(False),
+        )
+
+    @arc4.abimethod(readonly=True)
     def get_balance_available(self) -> arc4.UInt64:
         """
         Get the available balance
@@ -646,6 +658,14 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             balance_locked=arc4.UInt64(0),
             balance_fuse=arc4.Bool(False),
         )
+
+    # override
+    @arc4.abimethod(readonly=True)
+    def get_balances(self) -> BankBalances:
+        """
+        Get the balances
+        """
+        return self._bank_balances()
 
     @subroutine
     def _bank_balances(self) -> BankBalances:
@@ -1028,7 +1048,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(6)
+        self.deployment_version = UInt64(7)
         self.updatable = bool(1)
 
     @arc4.abimethod
@@ -1038,7 +1058,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(6)
+        self.deployment_version = UInt64(7)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1461,7 +1481,9 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         Returns:
             payout: The payout for the bet
         """
-        ensure_budget(1400, OpUpFeeSource.GroupCredit)  # REM may use 1399 opcode budget
+        # REM may use 2098 opcode budget
+        # increment by 700 as needed
+        ensure_budget(2100, OpUpFeeSource.GroupCredit) 
         return arc4.UInt64(self._claim(bet_key.bytes))
 
     @subroutine
@@ -1477,15 +1499,18 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         assert bet_key in self.bet, "bet not found"
         bet = self.bet[bet_key].copy()
 
+        lockup_release = self._lockup_amount(bet.amount.native) // (
+            bet.max_payline_index.native + UInt64(1)
+        )
+        self._decrement_balance_locked(lockup_release)
+        self._increment_balance_available(lockup_release)
+
         # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
         # and we can return the box cost to the sender
         if Global.round > bet.claim_round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
             del self.bet[bet_key]
             # Update balance tracking
             #   Release locked balance and adjust available balance
-            lockup_release = self._lockup_amount(bet.amount.native)
-            self._decrement_balance_locked(lockup_release)
-            self._increment_balance_available(lockup_release)
             itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
             arc4.emit(
                 BetClaimed(
@@ -1531,11 +1556,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
             if bet.payline_index.native + UInt64(1) > bet.max_payline_index.native:
                 del self.bet[bet_key]
-                lockup_release = self._lockup_amount(
-                    bet.amount.native
-                )  # Release for this single payline
-                self._decrement_balance_locked(lockup_release)
-                self._increment_balance_available(lockup_release - payout.native)
                 itxn.Payment(
                     receiver=Txn.sender,
                     amount=self._spin_cost() + self._spin_payline_cost(),

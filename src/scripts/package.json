@@ -17,7 +17,7 @@
     "@algorandfoundation/algokit-utils": "^6.2.1",
     "algosdk": "^2.9.0",
     "axios": "^1.7.5",
-    "bignumber.js": "^9.1.2",
+    "bignumber.js": "^9.3.1",
     "commander": "^12.1.0",
     "csv-parse": "^5.5.6",
     "csv-parser": "^3.0.0",

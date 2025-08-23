@@ -5,7 +5,10 @@ import {
 } from "./clients/SlotMachineClient.js";
 
 import { BeaconClient } from "./clients/BeaconClient.js";
-import { BankManagerClient } from "./clients/BankManagerClient.js";
+import {
+  BankManagerClient,
+  APP_SPEC as BankManagerAppSpec,
+} from "./clients/BankManagerClient.js";
 import { SpinManagerClient } from "./clients/SpinManagerClient.js";
 import { ReelManagerClient } from "./clients/ReelManagerClient.js";
 import {
@@ -17,6 +20,7 @@ import { CONTRACT } from "ulujs";
 import * as dotenv from "dotenv";
 import * as crypto from "crypto";
 import { AppSpec } from "@algorandfoundation/algokit-utils/types/app-spec.js";
+import BigNumber from "bignumber.js";
 dotenv.config({ path: ".env" });
 
 //
@@ -696,7 +700,7 @@ export const claim = async (options: ClaimOptions) => {
   const sk = options.sk || sks.deployer;
   const acc = { addr, sk };
   const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
-  ci.setFee(5000);
+  ci.setFee(6000);
   ci.setEnableParamsLastRoundMod(true);
   ci.setEnableRawBytes(true);
   const claimR = await ci.claim(
@@ -1420,7 +1424,7 @@ export const arc200PostUpdate: any = async (options: PostUpdateOptions) => {
 
 program
   .command("post-update")
-  .description("Post update the arc200 token")
+  .description("Post update the contract")
   .requiredOption("-a, --apid <number>", "Specify the application ID")
   .option("-s, --simulate", "Simulate the post update", false)
   .option("--debug", "Debug the deployment", false)
@@ -1730,4 +1734,34 @@ export const ybtGetDepositCost: any = async (
     console.log(getDepositCostR);
   }
   return getDepositCostR.returnValue;
+};
+
+// bankman
+
+const decodeBalances = (balances: any) => {
+  return {
+    balanceAvailable: new BigNumber(balances[0]).div(1e6).toNumber(),
+    balanceTotal: new BigNumber(balances[1]).div(1e6).toNumber(),
+    balanceLocked: new BigNumber(balances[2]).div(1e6).toNumber(),
+    //balanceFuse: Boolean(balances[3]),
+  };
+};
+
+interface GetBalancesOptions {
+  appId: number;
+  addr: string;
+  sk: any;
+  debug?: boolean;
+}
+
+export const getBalances: any = async (options: GetBalancesOptions) => {
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ci = makeContract(options.appId, BankManagerAppSpec, acc);
+  const getBalancesR = await ci.get_balances();
+  if (options.debug) {
+    console.log(getBalancesR);
+  }
+  return decodeBalances(getBalancesR.returnValue);
 };
