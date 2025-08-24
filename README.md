@@ -11,6 +11,8 @@ A comprehensive slot machine gaming platform built on the Algorand blockchain us
 - **Yield-Bearing Token (YBT)** system for profit sharing
 - **Comprehensive Testing Suite** with extensive coverage
 - **Modular Architecture** with upgradeable contracts
+- **Advanced Token Lockup Mechanism** for financial solvency
+- **Enhanced Documentation** with detailed system explanations
 
 ## 🏗️ Architecture
 
@@ -188,10 +190,14 @@ Each contract has specific bootstrap costs:
 
 - **Main Documentation**: [docs/index.md](docs/index.md)
 - **Yield-Bearing Token**: [docs/yield-bearing-token.md](docs/yield-bearing-token.md)
+- **Token Lockup Mechanism**: [docs/token-lockup-mechanism.md](docs/token-lockup-mechanism.md)
 - **API Reference**: Generated TypeScript interfaces in `src/scripts/clients`
 
 ## 🏷️ Version History
 
+- **v0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
+- **v0.5** (2025-08-22): Treasury lock adjustment and contract versioning
+- **v0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
 - **v0.1.3** (2025-08-21): Comprehensive slot machine testing and contract improvements
 - **v0.1.2** (2025-08-19): Enhanced contract testing and command functionality
 - **v0.1.1** (2025-08-18): Yield-bearing token documentation and testing improvements
@@ -221,6 +227,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Tournament functionality
 - Cross-chain compatibility
 - Enhanced yield distribution models
+- Advanced analytics and reporting tools
 
 ---
 

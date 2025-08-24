@@ -8,13 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- RTP (Return to Player) testing and validation
-- Enhanced reel manager test coverage
-- Improved odds testing accuracy
+- Enhanced testing coverage for improved system reliability
+- Code optimization and performance improvements
 
 ### Changed
-- Updated reel and payout model for better game mechanics
-- Enhanced test coverage across multiple contract components
+- Ongoing code cleanup and refactoring
+- Continuous testing improvements
+
+## [0.7] - 2025-08-24
+
+### Added
+- **Comprehensive Token Lockup Mechanism Documentation**: Added detailed explanation of the three-balance system (total, available, locked)
+- **Enhanced System Documentation**: Expanded docs/index.md with comprehensive system overview and technical details
+- **Token Lockup Mechanism Guide**: New docs/token-lockup-mechanism.md with 317 lines of detailed documentation
+- **Improved Yield-Bearing Token Docs**: Enhanced YBT documentation with additional technical details and examples
+- **Enhanced Testing Coverage**: Improved test coverage across multiple contract components
+- **RTP Testing Improvements**: Enhanced return-to-player testing with 1000 lookback validation
+
+### Changed
+- **Documentation Overhaul**: Major expansion of project documentation with 572 lines of new content
+- **Enhanced Slot Machine Logic**: Improved betting and claim logic for better user experience
+- **Bank Balance Management**: Enhanced bank balance management system for improved financial control
+- **Code Cleanup**: Removed commented code and completed TODO items for better maintainability
+- **Spin Lockup Adjustments**: Optimized spin lockup mechanism for better performance
+- **Testing Infrastructure**: Enhanced testing framework with improved validation and coverage
+
+### Technical Details
+- **Documentation**: Added 317 lines to token-lockup-mechanism.md, 192 lines to index.md, 93 lines to YBT docs
+- **Code Improvements**: Enhanced slot machine betting logic and claim processing
+- **Testing**: Improved RTP testing with 1000 lookback validation for better accuracy
+- **Code Cleanup**: Removed 15+ lines of commented code and completed TODO items
+- **Performance**: Optimized spin lockup calculations and balance management
 
 ## [0.5] - 2025-08-22
 
@@ -166,6 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
 - **0.5** (2025-08-22): Treasury lock adjustment and contract versioning
 - **0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
 - **0.1.3** (2025-08-21): Comprehensive slot machine testing and contract improvements
@@ -175,6 +200,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.7 - Comprehensive Token Lockup
+- Detailed explanation of the three-balance system (total, available, locked)
+- Comprehensive system overview and technical details in docs/index.md
+- New docs/token-lockup-mechanism.md with detailed documentation
+- Enhanced YBT documentation with additional technical details and examples
+- Improved test coverage across multiple contract components
+- Enhanced return-to-player testing with 1000 lookback validation
 
 ### v0.5 - Treasury & Versioning
 - Simplified treasury lock mechanism using bet size multiplier
@@ -231,7 +264,6 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 5. **Testing Excellence** (v0.1.3): Comprehensive test coverage
 6. **Simplified UX** (v0.1.4): Removed claim delays and improved user experience
 7. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
+8. **Comprehensive Token Lockup** (v0.7): Detailed Token Lockup Mechanism Documentation, Enhanced System Documentation, Improved Yield-Bearing Token Docs, Enhanced Testing Coverage, RTP Testing Improvements
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.
-
-8. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
