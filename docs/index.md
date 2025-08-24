@@ -42,6 +42,15 @@ Generates a 5x3 grid based on the provided seed. The grid represents the slot ma
 
 **Returns**: 15-byte grid representation
 
+##### `get_seed_bet_grid(seed: Bytes32, bet_key: Bytes56) -> Bytes15`
+Generates a grid based on both a seed and bet key, ensuring unique outcomes for each bet.
+
+**Parameters**:
+- `seed`: 32-byte seed for deterministic grid generation
+- `bet_key`: Unique bet identifier
+
+**Returns**: 15-byte grid representation
+
 ##### `spin(bet_amount: UInt64, max_payline_index: UInt64, index: UInt64) -> Bytes56`
 Places a bet and generates a spin outcome. The result is deterministic based on future block seeds.
 
@@ -75,10 +84,59 @@ Returns the payline pattern at the specified index.
 
 **Returns**: Array of 5 integers representing row positions
 
+##### `get_paylines() -> StaticArray[UInt64, 100]`
+Returns all 20 paylines as a single array of 100 integers.
+
+**Returns**: Array containing all payline patterns (20 paylines × 5 positions each)
+
+**Note**: Each payline consists of 5 integers representing the row positions (0=top, 1=middle, 2=bottom)
+
 ##### `match_payline(grid: Bytes15, payline_index: UInt64) -> PaylineMatch`
 Matches a grid against a specific payline to determine wins.
 
-**Returns**: `PaylineMatch` with count and initial symbol
+**Returns**: `PaylineMatch` with count and symbol
+
+##### `get_payout_multiplier(symbol: Byte, count: UInt64) -> UInt64`
+Gets the payout multiplier for a specific symbol and consecutive count.
+
+**Parameters**:
+- `symbol`: The symbol to check (A, B, C, D, or _)
+- `count`: The number of consecutive symbols (3, 4, or 5)
+
+**Returns**: Payout multiplier as a multiplier (e.g., 200 for 200x)
+
+**Example**: `get_payout_multiplier(A, 5)` returns 10000 for a 5-in-a-row A symbol
+
+##### `get_bet_grid(bet_key: Bytes56) -> Bytes15`
+Gets the grid for a specific bet using the bet's claim round seed.
+
+**Parameters**:
+- `bet_key`: The unique identifier for the bet
+
+**Returns**: 15-byte grid representation for the bet
+
+**Note**: This method generates a deterministic grid based on the bet's claim round and bet key
+
+##### `get_grid_payline_symbols(grid: Bytes15, payline_index: UInt64) -> Bytes5`
+Gets the symbols along a specific payline in a grid.
+
+**Parameters**:
+- `grid`: The 15-byte grid representation
+- `payline_index`: Index of the payline to check (0-19)
+
+**Returns**: 5-byte array containing the symbols along the specified payline
+
+**Note**: This method extracts the symbols that fall on a specific payline pattern
+
+##### `bootstrap_cost() -> UInt64`
+Returns the cost required to bootstrap the contract.
+
+**Returns**: Bootstrap cost in microAlgos
+
+##### `post_update()`
+Updates the contract version after an upgrade.
+
+**Note**: This method is called after contract upgrades to reset version numbers
 
 ### ReelManager
 
@@ -104,6 +162,13 @@ Returns the length of each reel (default: 100).
 ##### `get_reel_count() -> UInt64`
 Returns the number of reels (default: 5).
 
+##### `get_reel_window_length() -> UInt64`
+Returns the length of the reel window used for grid generation.
+
+**Returns**: The window length (default: 3)
+
+**Note**: This represents how many symbols are visible in each reel window
+
 ### SpinManager
 
 Handles the betting and spinning mechanics of the slot machine.
@@ -126,15 +191,52 @@ Claims completed bets and calculates payouts.
 - Supports multiple paylines per bet
 - Automatically handles expired bets
 
+##### `get_bet_claim_round(bet_key: Bytes56) -> UInt64`
+Gets the claim round for a specific bet.
+
+**Parameters**:
+- `bet_key`: Unique identifier for the bet
+
+**Returns**: The round number when the bet can be claimed
+
+**Note**: This is useful for determining when a bet is ready to be claimed
+
+##### `get_bet_key(address: Address, amount: UInt64, max_payline_index: UInt64, index: UInt64) -> Bytes56`
+Generates the bet key for a specific bet configuration.
+
+**Parameters**:
+- `address`: The address placing the bet
+- `amount`: The bet amount
+- `max_payline_index`: Maximum payline to check
+- `index`: Player's choice of index
+
+**Returns**: The unique bet key for the specified configuration
+
+**Note**: This method is useful for generating bet keys without actually placing bets
+
+##### `spin_cost() -> UInt64`
+Gets the base cost for spinning the slot machine.
+
+**Returns**: The cost in microAlgos (currently 50,500 microAlgos)
+
+**Note**: This is the base cost before adding payline costs
+
+##### `spin_payline_cost() -> UInt64`
+Gets the cost per payline for spinning the slot machine.
+
+**Returns**: The cost per payline in microAlgos (currently 30,000 microAlgos)
+
+**Note**: This cost is multiplied by the number of paylines being checked
+
 #### Configuration
 
 The SpinManager uses configurable parameters stored in boxes:
 
 - `max_extra_payment`: Maximum additional payment allowed (1 VOI)
-- `max_payout_multiplier`: Maximum payout multiplier (1000x)
+- `max_payout_multiplier`: Maximum payout multiplier (10000x)
 - `round_future_delta`: Rounds to wait before claiming (1)
 - `min_bet_amount`: Minimum bet amount (1 VOI)
-- `max_bet_amount`: Maximum bet amount (20 VOI)
+- `max_bet_amount`: Maximum bet amount (2000 VOI)
 - `min_bank_amount`: Minimum required bank balance (100k VOI)
 
 ### BankManager
@@ -167,18 +269,47 @@ An ERC-20 compatible token that generates yield from the slot machine profits.
 #### Methods
 
 ##### `bootstrap()`
-Initializes the token with name "Submarine Gaming Token" and symbol "GAME".
+Initializes the token with configurable name and symbol.
+
+##### `set_name(name: Bytes32)`
+Sets the token name (owner only).
+
+##### `set_symbol(symbol: Bytes8)`
+Sets the token symbol (owner only).
 
 ##### `deposit() -> UInt256`
 Deposits funds and mints shares based on the current exchange rate.
 
-**Cost**: 28,500 microAlgos (box creation)
+**Cost**: 28,500 microAlgos for first-time users (box creation)
 
 ##### `withdraw(amount: UInt256) -> UInt64`
 Burns shares and returns the corresponding asset amount.
 
 ##### `set_yield_bearing_source(app_id: UInt64)`
 Sets the slot machine contract as the yield source.
+
+##### `revoke_yield_bearing_source(new_owner: Address)`
+Revokes the yield bearing source by transferring ownership to a new owner.
+
+**Parameters**:
+- `new_owner`: The new owner address for the yield source contract
+
+**Note**: This method transfers ownership of the yield source contract away from the token contract
+
+##### `burn_yield_fuse()`
+Burns the yield fuse, preventing further yield source modifications.
+
+**Note**: This is an irreversible operation that permanently disables yield source changes
+
+##### `burn_stakeable_fuse()`
+Burns the stakeable fuse, disabling staking functionality.
+
+**Note**: This is an irreversible operation that permanently disables staking features
+
+##### `burn_upgradeable_fuse()`
+Burns the upgradeable fuse, preventing future contract upgrades.
+
+**Note**: This is an irreversible operation that permanently locks the contract version
 
 #### Yield Mechanics
 
@@ -217,7 +348,7 @@ class SpinParams(arc4.Struct):
 ```python
 class PaylineMatch(arc4.Struct):
     count: arc4.UInt64
-    initial_symbol: arc4.Byte
+    symbol: arc4.Byte
 ```
 
 ### Bet
@@ -226,20 +357,41 @@ class Bet(arc4.Struct):
     who: arc4.Address
     amount: arc4.UInt64
     max_payline_index: arc4.UInt64
+    index: arc4.UInt64
     claim_round: arc4.UInt64
-    payline_index: arc4.UInt64
+```
+
+### BetPlaced
+```python
+class BetPlaced(arc4.Struct):
+    who: arc4.Address
+    amount: arc4.UInt64
+    max_payline_index: arc4.UInt64
+    index: arc4.UInt64
+    claim_round: arc4.UInt64
+```
+
+### BetClaimed
+```python
+class BetClaimed(arc4.Struct):
+    who: arc4.Address
+    amount: arc4.UInt64
+    max_payline_index: arc4.UInt64
+    index: arc4.UInt64
+    claim_round: arc4.UInt64
+    payout: arc4.UInt64
 ```
 
 ## Payout System
 
-The slot machine uses a symbol-based payout system:
+The slot machine uses a symbol-based payout system with updated multipliers:
 
 | Symbol | 3-in-a-row | 4-in-a-row | 5-in-a-row |
 |--------|-------------|-------------|-------------|
-| A      | 50x         | 200x        | 1000x       |
-| B      | 20x         | 100x        | 500x        |
-| C      | 10x         | 50x         | 200x        |
-| D      | 5x          | 20x         | 100x        |
+| A      | 200x        | 1000x       | 10000x      |
+| B      | 60x         | 200x        | 1000x       |
+| C      | 30x         | 100x        | 500x        |
+| D      | 10x         | 55x         | 250x        |
 | _      | 0x          | 0x          | 0x          |
 
 ## Paylines
@@ -263,6 +415,7 @@ The system includes 20 predefined paylines covering various patterns:
 - Deterministic outcomes using block seeds
 - Claim round validation to prevent manipulation
 - Automatic expiration of unclaimed bets
+- Maximum claim round delta: 1000 rounds
 
 ### Financial Safety
 - Balance locking for potential payouts
@@ -326,13 +479,17 @@ const payout = await slotMachine.claim({ bet_key: betKey });
 // 1. Bootstrap the token
 await yieldToken.bootstrap();
 
-// 2. Set yield source
+// 2. Set name and symbol
+await yieldToken.set_name("Submarine Gaming Token");
+await yieldToken.set_symbol("GAME");
+
+// 3. Set yield source
 await yieldToken.set_yield_bearing_source(slotMachineAppId);
 
-// 3. Deposit funds
+// 4. Deposit funds
 const shares = await yieldToken.deposit({ payment: depositAmount + boxCost });
 
-// 4. Withdraw funds
+// 5. Withdraw funds
 const amount = await yieldToken.withdraw(shares);
 ```
 
@@ -364,3 +521,8 @@ Potential improvements include:
 - Tournament functionality
 - Cross-chain compatibility
 - Enhanced yield distribution models
+
+## Related Documentation
+
+- **[Yield-Bearing Token Documentation](yield-bearing-token.md)**: Detailed explanation of the yield token mechanics and mathematics
+- **[Token Lockup Mechanism](token-lockup-mechanism.md)**: Comprehensive guide to the balance management and lockup system

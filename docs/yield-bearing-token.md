@@ -28,13 +28,14 @@ Withdraw  Burn Shares    Profit Generation
 The fundamental relationship between shares and assets is:
 
 ```
-Shares = (Deposit Amount × Total Shares) ÷ Total Assets
+Shares = (Deposit Amount × Total Shares × SCALING_FACTOR) ÷ (Total Assets × SCALING_FACTOR)
 ```
 
 Where:
 - **Total Assets**: Current balance in the slot machine's bank
 - **Total Shares**: Current circulating supply of YBT tokens
 - **Deposit Amount**: User's contribution to the pool
+- **SCALING_FACTOR**: 10^12 to maintain precision during integer division
 
 ### Exchange Rate
 
@@ -48,8 +49,8 @@ Exchange Rate = Total Assets ÷ Total Shares
 
 ### Step-by-Step Process
 
-1. **User Payment**: User sends funds + box creation cost
-2. **Balance Query**: YBT queries slot machine's current available balance
+1. **User Payment**: User sends funds + box creation cost (if first-time user)
+2. **Balance Query**: YBT queries slot machine's current total balance BEFORE deposit
 3. **Fund Forwarding**: YBT forwards deposit to slot machine
 4. **Share Minting**: YBT mints shares based on PRIOR balance (before deposit)
 5. **State Update**: Updates total supply and user balance
@@ -65,11 +66,11 @@ def deposit(self) -> arc4.UInt256:
     # Check payment
     payment = require_payment(Txn.sender)
     balance_box_cost = self._deposit_cost()
-    assert payment > balance_box_cost, "payment insufficient"
+    assert payment >= balance_box_cost, "payment insufficient"
     
     # Calculate actual deposit amount
     deposit_amount = (
-        payment if self._balanceOf(Txn.sender) > 0 
+        payment if self._has_balance(Txn.sender) 
         else payment - balance_box_cost
     )
     assert deposit_amount > 0, "deposit amount must be greater than 0"
@@ -96,13 +97,16 @@ def deposit(self) -> arc4.UInt256:
 
 ```python
 @subroutine
-def _mint(self, amount: BigUInt, prior_balance: UInt64) -> BigUInt:
+def _mint(self, amount: BigUInt, total_assets: UInt64) -> BigUInt:
     if self.totalSupply == 0:
         # First deposit: shares = deposit amount
         shares = amount
     else:
-        # Subsequent deposits: proportional shares
-        shares = (amount * self.totalSupply) // BigUInt(prior_balance)
+        # Subsequent deposits: proportional shares with scaling factor
+        shares = (
+            (amount * self.totalSupply * SCALING_FACTOR)
+            // (BigUInt(total_assets) * SCALING_FACTOR)
+        )
     
     # Ensure minimum shares to prevent dust
     assert shares > 0, "Deposit amount too small"
@@ -115,6 +119,23 @@ def _mint(self, amount: BigUInt, prior_balance: UInt64) -> BigUInt:
     arc4.emit(arc200_Transfer(...))
     
     return shares
+```
+
+### Balance Detection
+
+```python
+@subroutine
+def _has_balance(self, who: Account) -> bool:
+    """
+    Check if an account has a balance greater than 0.
+    
+    This method uses a sentinel value (totalSupply + 1) to detect if a balance
+    exists in the BoxMap. Since no valid balance can exceed totalSupply, this
+    sentinel value will never collide with actual balances.
+    """
+    return self.balances.get(
+        key=who, default=self.totalSupply + BigUInt(1)
+    ) != self.totalSupply + BigUInt(1)
 ```
 
 ## Withdraw Mechanics
@@ -134,18 +155,21 @@ def _mint(self, amount: BigUInt, prior_balance: UInt64) -> BigUInt:
 def withdraw(self, amount: arc4.UInt256) -> arc4.UInt64:
     assert amount.native > 0, "amount must be greater than 0"
     assert self.yield_bearing_source > 0, "yield bearing source not set"
-    assert self._balanceOf(Txn.sender) >= amount.native, "insufficient balance"
+    
+    max_withdrawable = self._get_max_withdrawable_amount(Txn.sender)
+    assert max_withdrawable >= amount.native, "insufficient balance"
     
     return arc4.UInt64(self._burn(amount.native))
 
 @subroutine
 def _burn(self, withdraw_amount: BigUInt) -> UInt64:
     # Get current slot machine balance
-    slot_machine_balance, txn = arc4.abi_call(
-        BankManagerInterface.get_balance_available,
-        app_id=Application(self.yield_bearing_source),
+    app = Application(self.yield_bearing_source)
+    total_balance, txn = arc4.abi_call(
+        BankManagerInterface.get_balance_total,
+        app_id=app,
     )
-    big_slot_machine_balance = BigUInt(slot_machine_balance.native)
+    big_slot_machine_balance = BigUInt(total_balance.native)
     
     # Calculate withdrawal amount with increased precision
     amount_to_withdraw = (
@@ -160,9 +184,6 @@ def _burn(self, withdraw_amount: BigUInt) -> UInt64:
     
     # Validate withdrawal amount
     assert small_amount_to_withdraw > 0, "amount to withdraw is 0"
-    assert (
-        small_amount_to_withdraw <= slot_machine_balance.native
-    ), "amount to withdraw exceeds available balance"
     
     # Update balances FIRST
     self.balances[Txn.sender] -= withdraw_amount
@@ -181,6 +202,40 @@ def _burn(self, withdraw_amount: BigUInt) -> UInt64:
     arc4.emit(arc200_Transfer(...))
     
     return small_amount_to_withdraw
+```
+
+### Maximum Withdrawable Amount
+
+```python
+@subroutine
+def _get_max_withdrawable_amount(self, who: Account) -> BigUInt:
+    balance = self._balanceOf(who)
+    if balance == 0:
+        return BigUInt(0)
+
+    # Get available and locked balances from yield bearing source
+    app = Application(self.yield_bearing_source)
+    available_balance, txn1 = arc4.abi_call(
+        BankManagerInterface.get_balance_available,
+        app_id=app,
+    )
+    locked_balance, txn2 = arc4.abi_call(
+        BankManagerInterface.get_balance_locked,
+        app_id=app,
+    )
+    
+    # Calculate the maximum withdrawable amount based on available/locked ratio
+    total_balance = available_balance.native + locked_balance.native
+    if total_balance == 0:
+        return BigUInt(0)
+
+    # Calculate how much of the user's requested amount can actually be withdrawn
+    # based on the proportion of available balance
+    max_withdrawable = (
+        balance * BigUInt(available_balance.native) * SCALING_FACTOR
+    ) // (BigUInt(total_balance) * SCALING_FACTOR)
+    
+    return max_withdrawable
 ```
 
 ## Mathematical Examples
@@ -206,7 +261,7 @@ def _burn(self, withdraw_amount: BigUInt) -> UInt64:
 - User deposits: 500 VOI
 
 **Calculation:**
-- Shares = (500 × 1000) ÷ 1000 = 500 shares
+- Shares = (500 × 1000 × 10^12) ÷ (1000 × 10^12) = 500 shares
 - New Total Supply: 1500 shares
 - New Total Assets: 1500 VOI
 - Exchange Rate: 1.0 (1 share = 1 VOI)
@@ -220,7 +275,7 @@ def _burn(self, withdraw_amount: BigUInt) -> UInt64:
 - User deposits: 1000 VOI
 
 **Calculation:**
-- Shares = (1000 × 1500) ÷ 2000 = 750 shares
+- Shares = (1000 × 1500 × 10^12) ÷ (2000 × 10^12) = 750 shares
 - New Total Supply: 2250 shares
 - New Total Assets: 3000 VOI
 - New Exchange Rate: 1.33 (1 share = 1.33 VOI)
@@ -234,7 +289,7 @@ def _burn(self, withdraw_amount: BigUInt) -> UInt64:
 - User withdraws: 500 shares
 
 **Calculation:**
-- Assets to withdraw = (500 × 3000) ÷ 2250 = 666.67 VOI
+- Assets to withdraw = (500 × 3000 × 10^12) ÷ (2250 × 10^12) = 666.67 VOI
 - New Total Supply: 1750 shares
 - New Total Assets: 2333.33 VOI
 - Exchange Rate: 1.33 (1 share = 1.33 VOI)

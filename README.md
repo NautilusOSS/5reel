@@ -29,10 +29,10 @@ The slot machine uses a symbol-based payout system:
 
 | Symbol | 3-in-a-row | 4-in-a-row | 5-in-a-row |
 |--------|-------------|-------------|-------------|
-| A      | 100x        | 400x        | 2000x       |
-| B      | 40x         | 200x        | 1000x       |
-| C      | 25x         | 100x        | 400x        |
-| D      | 15x         | 40x         | 200x        |
+| A      | 200x        | 1000x       | 10000x      |
+| B      | 60x         | 200x        | 1000x       |
+| C      | 30x         | 100x        | 500x        |
+| D      | 10x         | 55x         | 250x        |
 | _      | 0x          | 0x          | 0x          |
 
 ## 🚀 Getting Started
