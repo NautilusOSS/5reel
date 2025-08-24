@@ -29,8 +29,6 @@ from opensubmarine.utils.algorand import require_payment
 
 #
 # TODO
-# - [x] - adjust treasury lock to be Bet Size * 10,000 VOI
-# - [x] - add contract versioning to sell which contract is deployed
 # - [ ] - test to make sure the whole reel is being used
 # - [ ] - test to make sure it is paying out
 #
@@ -826,21 +824,6 @@ class SpinManagerInterface(ARC4Contract):
         """
         return UInt64(0)
 
-    # @arc4.abimethod
-    # def claim_all(self, bet_key: Bytes56) -> arc4.UInt64:
-    #     """
-    #     Claim all bets
-    #     """
-    #     return arc4.UInt64(self._claim_all(bet_key.bytes))
-
-    # @subroutine
-    # def _claim_all(self, bet_key: Bytes) -> UInt64:
-    #     """
-    #     Claim all bets
-    #     """
-    #     return UInt64(0)
-
-
 class SpinManager(SpinManagerInterface, BankManager, Ownable):
     """
     A simple spin manager smart contract
@@ -1483,119 +1466,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         hashed = op.sha256(combined)
         grid = self._get_grid(hashed)
         return grid
-
-    # claim_one
-
-    # @arc4.abimethod
-    # def claim(self, bet_key: Bytes56) -> arc4.UInt64:
-    #     """
-    #     Claim a bet
-
-    #     Args:
-    #         bet_key: The key of the bet to claim
-
-    #     Returns:
-    #         payout: The payout for the bet
-    #     """
-    #     # REM may use 2098 opcode budget
-    #     # increment by 700 as needed
-    #     ensure_budget(2100, OpUpFeeSource.GroupCredit)
-    #     return arc4.UInt64(self._claim(bet_key.bytes))
-
-    # @subroutine
-    # def _claim(self, bet_key: Bytes) -> UInt64:
-    #     """
-    #     Claim a bet
-    #     Args:
-    #         bet_key: The key of the bet to claim
-
-    #     Returns:
-    #         payout: The payout for the bet
-    #     """
-    #     assert bet_key in self.bet, "bet not found"
-    #     bet = self.bet[bet_key].copy()
-
-    #     lockup_release = self._lockup_amount(bet.amount.native) // (
-    #         bet.max_payline_index.native + UInt64(1)
-    #     )
-    #     self._decrement_balance_locked(lockup_release)
-    #     self._increment_balance_available(lockup_release)
-
-    #     # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
-    #     # and we can return the box cost to the sender
-    #     if Global.round > bet.claim_round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
-    #         del self.bet[bet_key]
-    #         # Update balance tracking
-    #         #   Release locked balance and adjust available balance
-    #         itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
-    #         arc4.emit(
-    #             BetClaimed(
-    #                 who=bet.who,
-    #                 amount=bet.amount,
-    #                 max_payline_index=bet.max_payline_index,
-    #                 claim_round=bet.claim_round,
-    #                 payout_index=bet.payline_index,
-    #                 payout=arc4.UInt64(0),
-    #             )
-    #         )
-    #         return UInt64(0)
-    #     # if round is less than claim_round + 1000, the bet is still active
-    #     # and we need to calculate the payout
-    #     else:
-    #         # calculate r from block seed and bet key
-    #         combined = self._get_block_seed(bet.claim_round.native) + bet_key
-    #         hashed = op.sha256(combined)
-    #         grid = self._get_grid(hashed)
-    #         payline_match = self._match_payline(grid, bet.payline_index.native)
-    #         #########################################################
-    #         # get payout internal if subclass of SlotMachinePayoutModel
-    #         # otherwise call model to get payout
-    #         #########################################################
-    #         # use embedded payout model
-    #         payout = arc4.UInt64(
-    #             bet.amount.native * self._get_payout_multiplier(payline_match)
-    #         )
-    #         # use remote payout model
-    #         # payout, txn = arc4.abi_call(
-    #         #     SlotMachinePayoutModelInterface.get_payout,
-    #         #     bet.amount,
-    #         #     r,
-    #         #     app_id=Application(self.payout_model),
-    #         # )
-    #         #########################################################
-    #         # Update balance tracking
-    #         #   Release locked balance and adjust available balance
-    #         self._decrement_balance_total(payout.native)
-    #         # TODO branch on payline index
-    #         if payout > 0:
-    #             itxn.Payment(receiver=bet.who.native, amount=payout.native).submit()
-
-    #         if bet.payline_index.native + UInt64(1) > bet.max_payline_index.native:
-    #             del self.bet[bet_key]
-    #             itxn.Payment(
-    #                 receiver=Txn.sender,
-    #                 amount=self._spin_cost() + self._spin_payline_cost(),
-    #             ).submit()
-    #         else:
-    #             bet.payline_index = arc4.UInt64(bet.payline_index.native + UInt64(1))
-    #             self.bet[bet_key] = bet.copy()
-    #             itxn.Payment(
-    #                 receiver=Txn.sender,
-    #                 amount=self._spin_payline_cost(),
-    #             ).submit()
-    #         arc4.emit(
-    #             BetClaimed(
-    #                 who=bet.who,
-    #                 amount=bet.amount,
-    #                 max_payline_index=bet.max_payline_index,
-    #                 claim_round=bet.claim_round,
-    #                 payout_index=bet.payline_index,
-    #                 payout=payout,
-    #             )
-    #         )
-    #         return payout.native
-
-    # claim_all
 
     # override
     @arc4.abimethod
