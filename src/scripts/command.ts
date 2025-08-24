@@ -547,16 +547,16 @@ export const spin = async (options: SpinOptions) => {
   const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
   const spin_costR = await ci.spin_cost();
   const spin_cost = Number(spin_costR.returnValue);
-  const spin_payline_costR = await ci.spin_payline_cost();
-  const spin_payline_cost = Number(spin_payline_costR.returnValue);
-  const total_spin_payline_cost =
-    spin_payline_cost * (options.maxPaylineIndex + 1);
-  ci.setEnableRawBytes(true);
+  if (options.debug) console.log("spin_cost", spin_cost);
+  //const spin_payline_costR = await ci.spin_payline_cost();
+  //const spin_payline_cost = Number(spin_payline_costR.returnValue);
+  //const total_spin_payline_cost =
+  //  spin_payline_cost * (options.maxPaylineIndex + 1);
   const paymentAmount =
-    options.betAmount * (options.maxPaylineIndex + 1) +
-    spin_cost +
-    total_spin_payline_cost;
+    options.betAmount * (options.maxPaylineIndex + 1) + spin_cost; //+
+  //total_spin_payline_cost;
   ci.setPaymentAmount(paymentAmount);
+  ci.setEnableRawBytes(true);
   const spinR = await ci.spin(
     options.betAmount,
     options.maxPaylineIndex,
@@ -683,39 +683,39 @@ export const getBetGrid = async (options: GetBetGridOptions) => {
   return get_bet_gridR;
 };
 
-interface ClaimOptions {
-  appId: number;
-  betKey: string;
-  addr: string;
-  sk: Uint8Array;
-  debug?: boolean;
-  simulate?: boolean;
-}
+// interface ClaimOptions {
+//   appId: number;
+//   betKey: string;
+//   addr: string;
+//   sk: Uint8Array;
+//   debug?: boolean;
+//   simulate?: boolean;
+// }
 
-export const claim = async (options: ClaimOptions) => {
-  if (options.debug) {
-    console.log(options);
-  }
-  const addr = options.addr || addressses.deployer;
-  const sk = options.sk || sks.deployer;
-  const acc = { addr, sk };
-  const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
-  ci.setFee(6000);
-  ci.setEnableParamsLastRoundMod(true);
-  ci.setEnableRawBytes(true);
-  const claimR = await ci.claim(
-    new Uint8Array(Buffer.from(options.betKey, "hex"))
-  );
-  if (options.debug) {
-    console.log(claimR);
-  }
-  if (claimR.success) {
-    if (!options.simulate) {
-      await signSendAndConfirm(claimR.txns, sk);
-    }
-  }
-  return claimR;
-};
+// export const claim = async (options: ClaimOptions) => {
+//   if (options.debug) {
+//     console.log(options);
+//   }
+//   const addr = options.addr || addressses.deployer;
+//   const sk = options.sk || sks.deployer;
+//   const acc = { addr, sk };
+//   const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+//   ci.setFee(6000);
+//   ci.setEnableParamsLastRoundMod(true);
+//   ci.setEnableRawBytes(true);
+//   const claimR = await ci.claim(
+//     new Uint8Array(Buffer.from(options.betKey, "hex"))
+//   );
+//   if (options.debug) {
+//     console.log(claimR);
+//   }
+//   if (claimR.success) {
+//     if (!options.simulate) {
+//       await signSendAndConfirm(claimR.txns, sk);
+//     }
+//   }
+//   return claimR;
+// };
 
 interface GetPayoutMultiplierOptions {
   appId: number;
@@ -1764,4 +1764,36 @@ export const getBalances: any = async (options: GetBalancesOptions) => {
     console.log(getBalancesR);
   }
   return decodeBalances(getBalancesR.returnValue);
+};
+
+// slot
+
+interface ClaimOptions {
+  appId: number;
+  betKey: string;
+  addr: string;
+  sk: any;
+  debug?: boolean;
+  simulate?: boolean;
+}
+
+export const claim: any = async (options: ClaimOptions) => {
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+  ci.setFee(32000);
+  ci.setEnableParamsLastRoundMod(true);
+  const claimR = await ci.claim(
+    new Uint8Array(Buffer.from(options.betKey, "hex"))
+  );
+  if (options.debug) {
+    console.log({ claimR });
+  }
+  if (claimR.success) {
+    if (!options.simulate) {
+      await signSendAndConfirm(claimR.txns, sk);
+    }
+  }
+  return claimR;
 };

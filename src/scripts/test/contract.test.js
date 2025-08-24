@@ -20,7 +20,6 @@ import {
   simulateReelWindow,
   getPayoutMultiplier,
   spin,
-  claim,
   getBetGrid,
   // bank manager
   deposit,
@@ -54,6 +53,7 @@ import {
   getGridPaylineSymbols,
   simulateGridPaylineSymbols,
   getBalances,
+  claim,
   //getPaylineCount,
 } from "../command.js";
 
@@ -807,28 +807,218 @@ describe("slotmac: Slot Machine Payout Testing", function () {
         index: 0,
         ...acc2,
       });
-      for (let i = 0; i < 20; i++) {
-        let claimR0;
-        do {
-          process.stdout.write(".");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          await touch({ appId: beaconAppId });
-          claimR0 = await claim({
-            appId,
-            betKey,
-            ...acc2,
-            debug: true,
-          });
-          if (claimR0.returnValue > BigInt(0)) {
-            console.log("Claimed", claimR0.returnValue);
-            win = true;
-            break;
-          }
-        } while (!claimR0.success);
-        if (win) {
+      let claimR0;
+      do {
+        process.stdout.write(".");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await touch({ appId: beaconAppId });
+        claimR0 = await claim({
+          appId,
+          betKey,
+          ...acc2,
+          debug: true,
+        });
+        if (claimR0.returnValue > BigInt(0)) {
+          console.log("Claimed", claimR0.returnValue);
+          win = true;
           break;
         }
+      } while (!claimR0.success);
+      if (win) {
+        break;
       }
     } while (!win);
+  });
+
+  it("Should claim all bets", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    const betKey = await spin({
+      appId: appId,
+      betAmount: 1e6,
+      maxPaylineIndex: 19,
+      index: 0,
+      ...acc2,
+    });
+    let claimR;
+    do {
+      process.stdout.write(".");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await touch({ appId: beaconAppId });
+      claimR = await claim({
+        appId,
+        betKey,
+        ...acc2,
+        debug: true,
+      });
+    } while (!claimR.success);
+    console.log(claimR);
+  });
+
+  it("Should payout winning bets using claim all", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    let win = false;
+    do {
+      const betKey = await spin({
+        appId: appId,
+        betAmount: 1e6,
+        maxPaylineIndex: 19,
+        index: 0,
+        ...acc2,
+      });
+      let claimR;
+      do {
+        process.stdout.write(".");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await touch({ appId: beaconAppId });
+        claimR = await claim({
+          appId,
+          betKey,
+          ...acc2,
+          debug: true,
+        });
+      } while (!claimR.success);
+      console.log("claimAmount", Number(claimR.returnValue) / 1e6);
+      if (claimR.returnValue > BigInt(0)) {
+        win = true;
+      }
+    } while (!win);
+    expect(win).to.be.true;
+  });
+
+  it("Should compute running RTP", async function () {
+    let cost = 0;
+    let totalReward = 0;
+    const rtpData = []; // Array to store RTP data points
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 10000e6);
+
+    // Limit the number of spins for testing (remove this for production)
+    const maxSpins = 1000;
+    let spinCount = 0;
+
+    do {
+      {
+        const balances = await getBalances({
+          appId,
+        });
+        console.log(
+          `balances available: ${balances.balanceAvailable} locked: ${balances.balanceLocked} total: ${balances.balanceTotal}`
+        );
+      }
+      const betKey = await spin({
+        appId: appId,
+        betAmount: 1e6,
+        maxPaylineIndex: 19,
+        index: 0,
+        ...acc2,
+      });
+      {
+        const balances = await getBalances({
+          appId,
+        });
+        console.log(
+          `balances available: ${balances.balanceAvailable} locked: ${balances.balanceLocked} total: ${balances.balanceTotal}`
+        );
+      }
+      console.log("betKey", betKey);
+      cost += 20;
+      spinCount++;
+
+      let claimR;
+      do {
+        process.stdout.write(".");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await touch({ appId: beaconAppId });
+        claimR = await claim({
+          appId,
+          betKey,
+          ...acc2,
+        });
+        if (claimR.success) break;
+      } while (1);
+
+      const claimAmount = Number(claimR.returnValue) / 1e6;
+      if (claimAmount > 0) {
+        totalReward += claimAmount;
+      }
+
+      // Calculate current RTP
+      const currentRTP = (totalReward / cost) * 100;
+
+      // Store data point
+      rtpData.push({
+        spin: spinCount,
+        cost: cost,
+        totalReward: totalReward,
+        rtp: currentRTP,
+        claimAmount: claimAmount,
+      });
+
+      console.log(
+        `Spin ${spinCount}: claimAmount=${claimAmount.toFixed(
+          2
+        )}, totalReward=${totalReward.toFixed(
+          2
+        )}, cost=${cost}, RTP=${currentRTP.toFixed(2)}%`
+      );
+
+      // Break after max spins for testing
+      if (spinCount >= maxSpins) {
+        console.log(`\nReached max spins (${maxSpins}), stopping test`);
+        break;
+      }
+    } while (1);
+
+    // Plot the RTP data
+    console.log("\n=== RTP DATA FOR PLOTTING ===");
+    console.log("Format: [spin, rtp_percentage]");
+    const plotData = rtpData.map((point) => [point.spin, point.rtp]);
+    console.log(JSON.stringify(plotData, null, 2));
+
+    // Also log in CSV format for easy import to spreadsheet tools
+    console.log("\n=== CSV FORMAT ===");
+    console.log("Spin,Cost,TotalReward,RTP,ClaimAmount");
+    rtpData.forEach((point) => {
+      console.log(
+        `${point.spin},${point.cost},${point.totalReward.toFixed(
+          2
+        )},${point.rtp.toFixed(2)},${point.claimAmount.toFixed(2)}`
+      );
+    });
+
+    // Summary statistics
+    const finalRTP = rtpData[rtpData.length - 1]?.rtp || 0;
+    const avgRTP =
+      rtpData.reduce((sum, point) => sum + point.rtp, 0) / rtpData.length;
+    const minRTP = Math.min(...rtpData.map((point) => point.rtp));
+    const maxRTP = Math.max(...rtpData.map((point) => point.rtp));
+
+    console.log("\n=== RTP SUMMARY STATISTICS ===");
+    console.log(`Final RTP: ${finalRTP.toFixed(2)}%`);
+    console.log(`Average RTP: ${avgRTP.toFixed(2)}%`);
+    console.log(`Min RTP: ${minRTP.toFixed(2)}%`);
+    console.log(`Max RTP: ${maxRTP.toFixed(2)}%`);
+    console.log(`Total Spins: ${spinCount}`);
+    console.log(`Total Cost: ${cost}`);
+    console.log(`Total Reward: ${totalReward.toFixed(2)}`);
+
+    // Store data for external plotting (you can copy this to a plotting tool)
+    console.log("\n=== PLOT DATA (copy to your preferred plotting tool) ===");
+    console.log(
+      "X-axis (spins):",
+      rtpData.map((point) => point.spin)
+    );
+    console.log(
+      "Y-axis (RTP %):",
+      rtpData.map((point) => point.rtp)
+    );
+
+    // Also output in a more compact format for easy copying
+    console.log("\n=== COMPACT PLOT DATA ===");
+    console.log("Copy these two lines to the plotter:");
+    console.log(JSON.stringify(rtpData.map((point) => point.spin)));
+    console.log(JSON.stringify(rtpData.map((point) => point.rtp)));
   });
 });

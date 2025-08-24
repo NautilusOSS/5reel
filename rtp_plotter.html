@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slot Machine RTP Plotter</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .input-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎰 Slot Machine RTP Plotter</h1>
+    
+    <div class="container">
+        <h2>Input RTP Data</h2>
+        <div class="input-section">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Run your RTP test in the contract test file</li>
+                <li>Copy the "PLOT DATA" section from the console output</li>
+                <li>Paste it below and click "Plot RTP"</li>
+            </ol>
+            
+            <label for="rtpData"><strong>Paste RTP Data:</strong></label><br>
+            <textarea id="rtpData" placeholder="Paste the X-axis and Y-axis data here...&#10;&#10;Example:&#10;X-axis (spins): [1, 2, 3, 4, 5]&#10;Y-axis (RTP %): [0, 2.5, 1.67, 3.75, 2]"></textarea>
+            
+            <br><br>
+            <button onclick="parseAndPlot()">Plot RTP</button>
+            <button onclick="loadSampleData()">Load Sample Data</button>
+            <button onclick="clearChart()">Clear Chart</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>RTP Chart</h2>
+        <canvas id="rtpChart" width="400" height="200"></canvas>
+    </div>
+
+    <div class="container">
+        <h2>Statistics</h2>
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="finalRTP">-</div>
+                <div class="stat-label">Final RTP</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgRTP">-</div>
+                <div class="stat-label">Average RTP</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="minRTP">-</div>
+                <div class="stat-label">Min RTP</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="maxRTP">-</div>
+                <div class="stat-label">Max RTP</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalSpins">-</div>
+                <div class="stat-label">Total Spins</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rtpChart = null;
+
+        function parseAndPlot() {
+            const data = document.getElementById('rtpData').value;
+            if (!data.trim()) {
+                alert('Please paste some RTP data first!');
+                return;
+            }
+
+            try {
+                // Parse the data - handle multiple formats
+                const lines = data.split('\n').filter(line => line.trim());
+                let xAxis = null;
+                let yAxis = null;
+
+                // First try to find labeled data
+                for (const line of lines) {
+                    if (line.includes('X-axis (spins):')) {
+                        xAxis = JSON.parse(line.split('X-axis (spins):')[1].trim());
+                    } else if (line.includes('Y-axis (RTP %):')) {
+                        yAxis = JSON.parse(line.split('Y-axis (RTP %):')[1].trim());
+                    }
+                }
+
+                // If no labeled data found, try to parse raw arrays
+                if (!xAxis || !yAxis) {
+                    const arrays = [];
+                    for (const line of lines) {
+                        if (line.trim().startsWith('[') && line.trim().endsWith(']')) {
+                            try {
+                                const parsed = JSON.parse(line.trim());
+                                if (Array.isArray(parsed)) {
+                                    arrays.push(parsed);
+                                }
+                            } catch (e) {
+                                // Skip lines that can't be parsed as JSON
+                            }
+                        }
+                    }
+                    
+                    if (arrays.length >= 2) {
+                        xAxis = arrays[0]; // First array is spins
+                        yAxis = arrays[1]; // Second array is RTP values
+                    }
+                }
+
+                if (!xAxis || !yAxis) {
+                    throw new Error('Could not find valid array data. Please paste the raw arrays from your test output.');
+                }
+
+                if (xAxis.length !== yAxis.length) {
+                    throw new Error(`X-axis and Y-axis arrays have different lengths: ${xAxis.length} vs ${yAxis.length}`);
+                }
+
+                console.log('Parsed data:', { xAxis, yAxis });
+
+                // Update statistics
+                updateStats(xAxis, yAxis);
+
+                // Plot the data
+                plotRTP(xAxis, yAxis);
+
+            } catch (error) {
+                alert('Error parsing data: ' + error.message);
+                console.error('Parse error:', error);
+            }
+        }
+
+        function updateStats(spins, rtps) {
+            const finalRTP = rtps[rtps.length - 1];
+            const avgRTP = rtps.reduce((sum, rtp) => sum + rtp, 0) / rtps.length;
+            const minRTP = Math.min(...rtps);
+            const maxRTP = Math.max(...rtps);
+            const totalSpins = spins.length;
+
+            document.getElementById('finalRTP').textContent = finalRTP.toFixed(2) + '%';
+            document.getElementById('avgRTP').textContent = avgRTP.toFixed(2) + '%';
+            document.getElementById('minRTP').textContent = minRTP.toFixed(2) + '%';
+            document.getElementById('maxRTP').textContent = maxRTP.toFixed(2) + '%';
+            document.getElementById('totalSpins').textContent = totalSpins;
+        }
+
+        function plotRTP(spins, rtps) {
+            const ctx = document.getElementById('rtpChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (rtpChart) {
+                rtpChart.destroy();
+            }
+
+            rtpChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: spins,
+                    datasets: [{
+                        label: 'RTP (%)',
+                        data: rtps,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Return to Player (RTP) Over Time'
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Spin Number'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'RTP (%)'
+                            },
+                            beginAtZero: true,
+                            suggestedMax: Math.max(...rtps) * 1.1
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        function loadSampleData() {
+            const sampleData = `X-axis (spins): [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+Y-axis (RTP %): [0, 2.5, 1.67, 3.75, 2, 4.17, 3.57, 5, 4.44, 4]`;
+            document.getElementById('rtpData').value = sampleData;
+        }
+
+        function clearChart() {
+            if (rtpChart) {
+                rtpChart.destroy();
+                rtpChart = null;
+            }
+            document.getElementById('rtpData').value = '';
+            // Reset stats
+            document.querySelectorAll('.stat-value').forEach(el => el.textContent = '-');
+        }
+    </script>
+</body>
+</html> 

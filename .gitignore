@@ -7,3 +7,4 @@ artifacts
 commands
 out
 __pycache__
+out.txt
