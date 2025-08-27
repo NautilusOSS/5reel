@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ongoing code cleanup and refactoring
 - Continuous testing improvements
 
+## [0.8] - 2025-08-27
+
+### Added
+- **Balance Update Events**: Added `BalancesUpdated` event struct for transparent balance tracking
+- **Enhanced Event System**: Comprehensive event documentation in new `docs/events.md` file
+- **Data Structures Documentation**: New `docs/data-structures.md` with detailed contract structure information
+- **Claim Functionality Testing**: New `claim.contract.test.js` test file for comprehensive claim testing
+- **Improved Documentation Structure**: Reorganized documentation for better clarity and maintainability
+
+### Changed
+- **Documentation Restructuring**: Separated events from data structures in `docs/index.md` for better organization
+- **Enhanced Balance Tracking**: BankManager now emits events for all balance operations (deposit, withdraw, lock, unlock)
+- **Improved Transparency**: All balance changes are now tracked and emitted as events for better monitoring
+- **Documentation Clarity**: Better separation of concerns in documentation structure
+
+### Technical Details
+- **New Events**: Added `BalancesUpdated` event with `balance_available`, `balance_total`, and `balance_locked` fields
+- **Event Emission**: Balance events now emitted in all `BankManager` balance operations
+- **Documentation**: Added 505 lines to `docs/events.md`, 197 lines to `docs/data-structures.md`
+- **Testing**: New claim functionality test file with 230 lines of comprehensive testing
+- **Code Improvements**: Enhanced contract transparency and monitoring capabilities
+
 ## [0.7] - 2025-08-24
 
 ### Added
@@ -190,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
 - **0.5** (2025-08-22): Treasury lock adjustment and contract versioning
 - **0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
@@ -200,6 +223,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.8 - Enhanced Transparency
+- Balance update events for transparent tracking
+- Comprehensive event documentation
+- Data structures documentation
+- Claim functionality testing
+- Improved documentation structure
 
 ### v0.7 - Comprehensive Token Lockup
 - Detailed explanation of the three-balance system (total, available, locked)
@@ -265,5 +295,6 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 6. **Simplified UX** (v0.1.4): Removed claim delays and improved user experience
 7. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
 8. **Comprehensive Token Lockup** (v0.7): Detailed Token Lockup Mechanism Documentation, Enhanced System Documentation, Improved Yield-Bearing Token Docs, Enhanced Testing Coverage, RTP Testing Improvements
+9. **Enhanced Transparency** (v0.8): Balance update events, comprehensive event system, data structures documentation, claim functionality testing, improved documentation structure
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.

@@ -13,6 +13,8 @@ A comprehensive slot machine gaming platform built on the Algorand blockchain us
 - **Modular Architecture** with upgradeable contracts
 - **Advanced Token Lockup Mechanism** for financial solvency
 - **Enhanced Documentation** with detailed system explanations
+- **Balance Update Events** for transparent financial tracking
+- **Structured Documentation** with separate events and data structures guides
 
 ## 🏗️ Architecture
 
@@ -118,6 +120,7 @@ mocha
 ```bash
 mocha src/scripts/test/contract.test.js
 mocha src/scripts/test/ybt.contract.test.js
+mocha src/scripts/test/claim.contract.test.js
 ```
 
 ### Test Coverage
@@ -129,6 +132,7 @@ The project includes comprehensive test coverage for:
 - Yield token mechanics
 - Access control and security features
 - Grid generation and payline matching
+- Claim functionality and balance tracking
 
 ## 🚀 Deployment
 
@@ -185,16 +189,20 @@ Each contract has specific bootstrap costs:
 - **Deterministic Outcomes**: Fair gameplay using block seeds
 - **Claim Round Validation**: Prevents manipulation
 - **Automatic Expiration**: Unclaimed bets expire automatically
+- **Balance Event Tracking**: All balance changes are emitted as events for transparency
 
 ## 📚 Documentation
 
 - **Main Documentation**: [docs/index.md](docs/index.md)
+- **Events Guide**: [docs/events.md](docs/events.md)
+- **Data Structures**: [docs/data-structures.md](docs/data-structures.md)
 - **Yield-Bearing Token**: [docs/yield-bearing-token.md](docs/yield-bearing-token.md)
 - **Token Lockup Mechanism**: [docs/token-lockup-mechanism.md](docs/token-lockup-mechanism.md)
 - **API Reference**: Generated TypeScript interfaces in `src/scripts/clients`
 
 ## 🏷️ Version History
 
+- **v0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **v0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
 - **v0.5** (2025-08-22): Treasury lock adjustment and contract versioning
 - **v0.1.4** (2025-08-21): Simplified bet claiming process and contract cleanup
@@ -232,6 +240,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **5reel** - Bringing blockchain gaming to the next level with Algorand technology.
-
-
-
