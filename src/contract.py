@@ -52,6 +52,12 @@ MAX_CLAIM_ROUND_DELTA = 1000
 SCALING_FACTOR = 10**12
 
 
+class BalancesUpdated(arc4.Struct):
+    balance_available: arc4.UInt64
+    balance_total: arc4.UInt64
+    balance_locked: arc4.UInt64
+
+
 class BankBalances(arc4.Struct):
     balance_available: arc4.UInt64
     balance_total: arc4.UInt64
@@ -683,6 +689,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_available.native + amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
     @subroutine
     def _decrement_balance_available(self, amount: UInt64) -> None:
@@ -694,6 +707,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_available.native - amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
     @subroutine
     def _get_balance_locked(self) -> UInt64:
@@ -706,6 +726,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_locked.native + amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
     @subroutine
     def _decrement_balance_locked(self, amount: UInt64) -> None:
@@ -717,6 +744,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_locked.native - amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
     @subroutine
     def _get_balance_total(self) -> UInt64:
@@ -729,6 +763,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_total.native + amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
     @subroutine
     def _decrement_balance_total(self, amount: UInt64) -> None:
@@ -740,6 +781,13 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
             bank_balances.balance_total.native - amount
         )
         Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
 
 
 class SpinManagerInterface(ARC4Contract):
@@ -823,6 +871,7 @@ class SpinManagerInterface(ARC4Contract):
             payout: The payout for the bet
         """
         return UInt64(0)
+
 
 class SpinManager(SpinManagerInterface, BankManager, Ownable):
     """
@@ -1046,7 +1095,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(7)
+        self.deployment_version = UInt64(8)
         self.updatable = bool(1)
 
     @arc4.abimethod
@@ -1056,7 +1105,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(7)
+        self.deployment_version = UInt64(8)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1483,6 +1532,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         Claim all bets in spin
           1 get the box data
           a release lockup amount
+          c handle expired bet
           2 determine number of lines
           3 decode the entire grid
           4 loop through the number of lines and evaluate each one
@@ -1499,6 +1549,31 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         lockup_release = self._lockup_amount(bet.amount.native)
         self._decrement_balance_locked(lockup_release)
         self._increment_balance_available(lockup_release)
+
+        # c handlee expired bet
+
+        # if round is greater than claim_round + MAX_CLAIM_ROUND_DELTA, the bet is expired
+        # and we can return the box cost to the sender
+
+        if Global.round > bet.claim_round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
+            del self.bet[bet_key]
+            # Update balance tracking
+            #   Release locked balance and adjust available balance
+            itxn.Payment(receiver=Txn.sender, amount=self._spin_cost()).submit()
+            arc4.emit(
+                BetClaimed(
+                    who=bet.who,
+                    amount=bet.amount,
+                    max_payline_index=bet.max_payline_index,
+                    index=bet.index,
+                    claim_round=bet.claim_round,
+                    payout=arc4.UInt64(0),
+                )
+            )
+            return UInt64(0)
+
+        # if round is less than claim_round + 1000, the bet is still active
+        # and we need to calculate the payout
 
         # 2 determine number of lines
         lines = bet.max_payline_index.native + UInt64(1)

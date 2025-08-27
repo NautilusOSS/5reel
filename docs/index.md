@@ -321,66 +321,27 @@ The token implements a share-based yield system:
 4. Profits from the slot machine increase the underlying asset value
 5. Users can withdraw their proportional share of the total assets
 
+## Events
+
+The smart contracts emit various events to track important state changes and user interactions. These events provide transparency, enable real-time monitoring, and support analytics and auditing.
+
+**Key Events**:
+- **BetPlaced**: Emitted when a new bet is placed
+- **BetClaimed**: Emitted when a bet is claimed and payout calculated
+- **arc200_Transfer**: Standard token transfer events for the yield token
+
+For comprehensive event documentation including monitoring, analytics, and integration examples, see **[Events Documentation](events.md)**.
+
 ## Data Structures
 
-### BankBalances
-```python
-class BankBalances(arc4.Struct):
-    balance_available: arc4.UInt64
-    balance_total: arc4.UInt64
-    balance_locked: arc4.UInt64
-    balance_fuse: arc4.Bool
-```
+For comprehensive documentation of all data structures used in the 5reel smart contract system, see **[Data Structures Documentation](data-structures.md)**.
 
-### SpinParams
-```python
-class SpinParams(arc4.Struct):
-    max_extra_payment: arc4.UInt64
-    max_payout_multiplier: arc4.UInt64
-    round_future_delta: arc4.UInt64
-    min_bet_amount: arc4.UInt64
-    max_bet_amount: arc4.UInt64
-    min_bank_amount: arc4.UInt64
-    spin_fuse: arc4.Bool
-```
-
-### PaylineMatch
-```python
-class PaylineMatch(arc4.Struct):
-    count: arc4.UInt64
-    symbol: arc4.Byte
-```
-
-### Bet
-```python
-class Bet(arc4.Struct):
-    who: arc4.Address
-    amount: arc4.UInt64
-    max_payline_index: arc4.UInt64
-    index: arc4.UInt64
-    claim_round: arc4.UInt64
-```
-
-### BetPlaced
-```python
-class BetPlaced(arc4.Struct):
-    who: arc4.Address
-    amount: arc4.UInt64
-    max_payline_index: arc4.UInt64
-    index: arc4.UInt64
-    claim_round: arc4.UInt64
-```
-
-### BetClaimed
-```python
-class BetClaimed(arc4.Struct):
-    who: arc4.Address
-    amount: arc4.UInt64
-    max_payline_index: arc4.UInt64
-    index: arc4.UInt64
-    claim_round: arc4.UInt64
-    payout: arc4.UInt64
-```
+The system uses several key data structures including:
+- **BankBalances**: Financial state tracking for the BankManager
+- **SpinParams**: Configuration parameters for the SpinManager
+- **PaylineMatch**: Results of payline matching against grids
+- **Bet**: Individual bet records with metadata
+- **Event Structures**: BetPlaced and BetClaimed events for tracking
 
 ## Payout System
 
@@ -524,5 +485,7 @@ Potential improvements include:
 
 ## Related Documentation
 
+- **[Data Structures Documentation](data-structures.md)**: Complete reference for all smart contract data structures, types, and usage examples
+- **[Events Documentation](events.md)**: Comprehensive guide to all smart contract events, monitoring, and analytics
 - **[Yield-Bearing Token Documentation](yield-bearing-token.md)**: Detailed explanation of the yield token mechanics and mathematics
 - **[Token Lockup Mechanism](token-lockup-mechanism.md)**: Comprehensive guide to the balance management and lockup system
