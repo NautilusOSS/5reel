@@ -47,6 +47,7 @@ export const paylines = [
     [1, 0, 1, 2, 1], // 20. Wave
 ];
 const makeContract = (appId, appSpec, acc) => {
+    const { algodClient, indexerClient } = getCurrentClients();
     return new CONTRACT(appId, algodClient, indexerClient, {
         name: "",
         desc: "",
@@ -58,6 +59,187 @@ const makeContract = (appId, appSpec, acc) => {
     });
 };
 export const program = new Command();
+// Set program metadata
+program
+    .name("5reel")
+    .description("5Reel Slot Machine CLI - Deploy and interact with Algorand smart contracts")
+    .version("1.0.0");
+// Global options
+program
+    .option("-n, --network <string>", "Specify network (devnet, testnet, mainnet)")
+    .option("--algod-server <string>", "Override Algorand node server URL")
+    .option("--algod-port <number>", "Override Algorand node port")
+    .option("--indexer-server <string>", "Override Algorand indexer server URL")
+    .option("--indexer-port <number>", "Override Algorand indexer port")
+    .option("--algod-token <string>", "Override Algorand node token")
+    .option("--indexer-token <string>", "Override Algorand indexer token")
+    .option("-d, --debug", "Enable debug mode")
+    .option("-s, --simulate", "Simulate transactions without sending")
+    .option("--dry-run", "Show what would be done without executing")
+    .option("-h, --help", "Show help information");
+// Hook to handle global options and configure network
+program.hook("preAction", (thisCommand, actionCommand) => {
+    const options = thisCommand.opts();
+    // Set defaults for undefined options
+    const network = options.network || "devnet";
+    const debug = options.debug || false;
+    const simulate = options.simulate || false;
+    const dryRun = options.dryRun || false;
+    console.log("Using network", network);
+    // Update network configuration based on global options
+    if (network === "testnet") {
+        const ALGO_SERVER = "https://testnet-api.voi.nodely.dev";
+        const ALGO_INDEXER_SERVER = "https://testnet-idx.voi.nodely.dev";
+        const ALGO_PORT = 443;
+        const ALGO_INDEXER_PORT = 443;
+        // Update global variables if not overridden
+        if (!options.algodServer) {
+            globalThis.ALGO_SERVER = ALGO_SERVER;
+            globalThis.ALGO_PORT = ALGO_PORT;
+        }
+        if (!options.indexerServer) {
+            globalThis.ALGO_INDEXER_SERVER = ALGO_INDEXER_SERVER;
+            globalThis.ALGO_INDEXER_PORT = ALGO_INDEXER_PORT;
+        }
+    }
+    else if (network === "mainnet") {
+        const ALGO_SERVER = "https://mainnet-api.voi.nodely.dev";
+        const ALGO_PORT = 443;
+        const ALGO_INDEXER_SERVER = "https://mainnet-idx.voi.nodely.dev";
+        const ALGO_INDEXER_PORT = 443;
+        // Update global variables if not overridden
+        if (!options.algodServer) {
+            globalThis.ALGO_SERVER = ALGO_SERVER;
+            globalThis.ALGO_PORT = ALGO_PORT;
+        }
+        if (!options.indexerServer) {
+            globalThis.ALGO_INDEXER_SERVER = ALGO_INDEXER_SERVER;
+            globalThis.ALGO_INDEXER_PORT = ALGO_INDEXER_PORT;
+        }
+    }
+    // Set global debug and simulate flags
+    globalThis.GLOBAL_DEBUG = debug;
+    globalThis.GLOBAL_SIMULATE = simulate;
+    globalThis.GLOBAL_DRY_RUN = dryRun;
+    // Store the current options globally for client creation
+    globalThis.CURRENT_NETWORK_OPTIONS = options;
+});
+// Config command to show current settings
+program
+    .command("config")
+    .description("Show current configuration and network settings")
+    .action(() => {
+    const options = program.opts();
+    // Set defaults for undefined options
+    const network = options.network || "devnet";
+    const debug = options.debug || false;
+    const simulate = options.simulate || false;
+    const dryRun = options.dryRun || false;
+    console.log("Current Configuration:");
+    console.log("=====================");
+    console.log(`Network: ${network}`);
+    console.log(`Debug Mode: ${debug ? "Enabled" : "Disabled"}`);
+    console.log(`Simulate Mode: ${simulate ? "Enabled" : "Disabled"}`);
+    console.log(`Dry Run Mode: ${dryRun ? "Enabled" : "Disabled"}`);
+    console.log("");
+    console.log("Network Settings:");
+    console.log("=================");
+    console.log(`Algod Server: ${options.algodServer || "Using default for " + network}`);
+    console.log(`Algod Port: ${options.algodPort || "Using default for " + network}`);
+    console.log(`Indexer Server: ${options.indexerServer || "Using default for " + network}`);
+    console.log(`Indexer Port: ${options.indexerPort || "Using default for " + network}`);
+    console.log("");
+    console.log("Environment Variables:");
+    console.log("=====================");
+    console.log(`MN: ${process.env.MN ? "Set" : "Not set"}`);
+    console.log(`ALGOD_SERVER: ${process.env.ALGOD_SERVER || "Not set"}`);
+    console.log(`ALGOD_PORT: ${process.env.ALGOD_PORT || "Not set"}`);
+    console.log(`INDEXER_SERVER: ${process.env.INDEXER_SERVER || "Not set"}`);
+    console.log(`INDEXER_PORT: ${process.env.INDEXER_PORT || "Not set"}`);
+});
+// Test network command to verify connectivity
+program
+    .command("test-network")
+    .description("Test network connectivity and configuration")
+    .action(async () => {
+    try {
+        const { algodClient, indexerClient } = getCurrentClients();
+        const config = getCurrentNetworkConfig();
+        console.log("Testing network configuration...");
+        console.log("================================");
+        console.log("Configuration:", config);
+        console.log("");
+        // Test algod connection
+        console.log("Testing Algod connection...");
+        const status = await algodClient.status().do();
+        console.log("✓ Algod connected successfully");
+        console.log("  Last round:", status["last-round"]);
+        console.log("  Time since last round:", status["time-since-last-round"]);
+        console.log("");
+        // Test indexer connection
+        console.log("Testing Indexer connection...");
+        const health = await indexerClient.makeHealthCheck().do();
+        console.log("✓ Indexer connected successfully");
+        console.log("  Health:", health);
+        console.log("");
+        console.log("Network test completed successfully!");
+    }
+    catch (error) {
+        console.error("Network test failed:", error);
+        process.exit(1);
+    }
+});
+// Help command to show all available commands
+program
+    .command("help")
+    .description("Show detailed help for all commands")
+    .action(() => {
+    console.log("5Reel CLI - Available Commands");
+    console.log("================================");
+    console.log("");
+    console.log("Global Options:");
+    console.log("  -n, --network <string>     Specify network (devnet, testnet, mainnet)");
+    console.log("  --algod-server <string>    Override Algorand node server URL");
+    console.log("  --algod-port <number>      Override Algorand node port");
+    console.log("  --indexer-server <string>  Override Algorand indexer server URL");
+    console.log("  --indexer-port <number>    Override Algorand indexer port");
+    console.log("  --algod-token <string>     Override Algorand node token");
+    console.log("  --indexer-token <string>   Override Algorand indexer token");
+    console.log("  -d, --debug                Enable debug mode");
+    console.log("  -s, --simulate             Simulate transactions without sending");
+    console.log("  --dry-run                  Show what would be done without executing");
+    console.log("  -V, --version              Show version information");
+    console.log("  -h, --help                 Show help information");
+    console.log("");
+    console.log("Commands:");
+    console.log("  config                     Show current configuration and network settings");
+    console.log("  test-network                Test network connectivity and configuration");
+    console.log("  deploy                     Deploy a specific contract type");
+    console.log("  spin                       Execute a slot machine spin");
+    console.log("  bootstrap                  Bootstrap a contract");
+    console.log("  get-owner                  Get contract owner");
+    console.log("  ybt-deposit                Deposit to yield bearing token");
+    console.log("  ybt-withdraw               Withdraw from yield bearing token");
+    console.log("  set-yield-bearing-source   Set yield bearing source");
+    console.log("  transfer-ownership         Transfer contract ownership");
+    console.log("  pay                        Send payment transaction");
+    console.log("  post-update                Post update to contract");
+    console.log("  set-name                   Set yield bearing token name");
+    console.log("  set-symbol                 Set yield bearing token symbol");
+    console.log("  ybt-revoke-yield-bearing-source  Revoke yield bearing source");
+    console.log("  get-balances               Get bank manager balances");
+    console.log("  sync-balance               Sync bank manager balance");
+    console.log("");
+    console.log("Examples:");
+    console.log("  # Deploy to testnet with debug mode");
+    console.log('  5reel -n testnet -d deploy -t SlotMachine -n "MySlotMachine"');
+    console.log("");
+    console.log("  # Simulate a spin without sending transaction");
+    console.log("  5reel -s spin -a 123 -b 1000 -m 19 -i 0");
+    console.log("");
+    console.log("  # Show current configuration");
+    console.log("  5reel config");
+});
 const { MN } = process.env;
 export const acc = algosdk.mnemonicToSecretKey(MN || "");
 export const { addr, sk } = acc;
@@ -79,7 +261,36 @@ const ALGO_INDEXER_PORT = 8980;
 // const ALGO_INDEXER_PORT = 443;
 // MAINNET
 // const ALGO_SERVER = "https://mainnet-api.voi.nodely.dev";
+// const ALGO_PORT = 443;
 // const ALGO_INDEXER_SERVER = "https://mainnet-idx.voi.nodely.dev";
+// const ALGO_INDEXER_PORT = 443;
+// Function to get current network configuration
+const getCurrentNetworkConfig = () => {
+    const globalOptions = globalThis.CURRENT_NETWORK_OPTIONS;
+    if (!globalOptions) {
+        console.log("No global options found, using default devnet configuration");
+        return {
+            server: ALGO_SERVER,
+            port: ALGO_PORT,
+            indexerServer: ALGO_INDEXER_SERVER,
+            indexerPort: ALGO_INDEXER_PORT,
+            token: process.env.ALGOD_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            indexerToken: process.env.INDEXER_TOKEN || ""
+        };
+    }
+    const config = {
+        server: globalOptions.algodServer || globalThis.ALGO_SERVER || ALGO_SERVER,
+        port: globalOptions.algodPort || globalThis.ALGO_PORT || ALGO_PORT,
+        indexerServer: globalOptions.indexerServer || globalThis.ALGO_INDEXER_SERVER || ALGO_INDEXER_SERVER,
+        indexerPort: globalOptions.indexerPort || globalThis.ALGO_INDEXER_PORT || ALGO_INDEXER_PORT,
+        token: globalOptions.algodToken || process.env.ALGOD_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        indexerToken: globalOptions.indexerToken || process.env.INDEXER_TOKEN || ""
+    };
+    if (globalOptions.debug) {
+        console.log("Network configuration:", config);
+    }
+    return config;
+};
 const algodServerURL = process.env.ALGOD_SERVER || ALGO_SERVER;
 const algodServerPort = process.env.ALGOD_PORT || ALGO_PORT;
 export const algodClient = new algosdk.Algodv2(process.env.ALGOD_TOKEN ||
@@ -87,6 +298,13 @@ export const algodClient = new algosdk.Algodv2(process.env.ALGOD_TOKEN ||
 const indexerServerURL = process.env.INDEXER_SERVER || ALGO_INDEXER_SERVER;
 const indexerServerPort = process.env.INDEXER_PORT || ALGO_INDEXER_PORT;
 export const indexerClient = new algosdk.Indexer(process.env.INDEXER_TOKEN || "", indexerServerURL, indexerServerPort);
+// Function to get current clients with updated configuration
+export const getCurrentClients = () => {
+    const config = getCurrentNetworkConfig();
+    const algodClient = new algosdk.Algodv2(config.token, config.server, config.port);
+    const indexerClient = new algosdk.Indexer(config.indexerToken, config.indexerServer, config.indexerPort);
+    return { algodClient, indexerClient };
+};
 const makeSpec = (methods) => {
     return {
         name: "",
@@ -240,12 +458,12 @@ export const deploy = async (options) => {
     }
     const clientParams = {
         resolveBy: "creatorAndName",
-        findExistingUsing: indexerClient,
+        findExistingUsing: getCurrentClients().indexerClient,
         creatorAddress: acc.addr,
         name: options.name || "",
         sender: acc,
     };
-    const appClient = Client ? new Client(clientParams, algodClient) : null;
+    const appClient = Client ? new Client(clientParams, getCurrentClients().algodClient) : null;
     if (appClient) {
         const app = await appClient.deploy({
             deployTimeParams: {},
@@ -585,7 +803,7 @@ export const touch = async (options) => {
         resolveBy: "id",
         id: Number(options.appId),
         sender: acc,
-    }, algodClient);
+    }, getCurrentClients().algodClient);
     const txn = await appClient.touch({});
     if (options.debug) {
         console.log(txn);
@@ -1157,6 +1375,19 @@ export const getBalances = async (options) => {
     }
     return decodeBalances(getBalancesR.returnValue);
 };
+program
+    .command("get-balances")
+    .description("Get the balances of the bank manager")
+    .requiredOption("-a, --appId <number>", "Specify the application ID")
+    .option("-s, --addr <string>", "Specify sender")
+    .option("--debug", "Debug the get-balances", false)
+    .action(async (options) => {
+    const balances = await getBalances({
+        ...options,
+        appId: Number(options.appId),
+    });
+    console.log(balances);
+});
 export const claim = async (options) => {
     const addr = options.addr || addressses.deployer;
     const sk = options.sk || sks.deployer;
@@ -1175,3 +1406,40 @@ export const claim = async (options) => {
     }
     return claimR;
 };
+export const syncBalance = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, BankManagerAppSpec, acc);
+    const syncBalanceR = await ci.sync_balance();
+    if (options.debug) {
+        console.log(syncBalanceR);
+    }
+    if (syncBalanceR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(syncBalanceR.txns, sk);
+        }
+    }
+    return syncBalanceR;
+};
+program
+    .command("sync-balance")
+    .description("Sync the balance of the bank manager")
+    .requiredOption("-a, --appId <number>", "Specify the application ID")
+    .option("-s, --addr <string>", "Specify sender")
+    .option("--debug", "Debug the sync-balance", false)
+    .option("--simulate", "Simulate the sync-balance", false)
+    .action(async (options) => {
+    const syncBalanceR = await syncBalance({
+        ...options,
+        appId: Number(options.appId),
+        addr: options.addr,
+        simulate: options.simulate,
+        debug: options.debug,
+    });
+    console.log(syncBalanceR);
+});
+// Parse command line arguments
+if (import.meta.url === `file://${process.argv[1]}`) {
+    program.parse();
+}

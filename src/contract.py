@@ -568,7 +568,6 @@ class BankManagerInterface(ARC4Contract):
         """
         return UInt64(0)
 
-
 class BankManager(BankManagerInterface, Bootstrapped, Ownable):
     """
     A simple bank manager smart contract
@@ -579,6 +578,8 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
     balance_total UInt64
     balance_available UInt64
     blaance_locked UInt64
+
+    Version: 0.2
     """
 
     # --- bootstrap ---
@@ -788,6 +789,31 @@ class BankManager(BankManagerInterface, Bootstrapped, Ownable):
                 balance_locked=bank_balances.balance_locked,
             )
         )
+
+    @arc4.abimethod
+    def sync_balance(self) -> arc4.UInt64:
+        """
+        Sync the balance of the contract
+        """
+        return arc4.UInt64(self._sync_balance())
+
+    @subroutine
+    def _sync_balance(self) -> UInt64:
+        bank_balances = self._bank_balances()
+        assert bank_balances.balance_locked.native == 0
+        account = Global.current_application_address
+        available_balance = account.balance - account.min_balance
+        bank_balances.balance_available = arc4.UInt64(available_balance)
+        bank_balances.balance_total = arc4.UInt64(available_balance)
+        Box(BankBalances, key="bank_balances").value = bank_balances.copy()
+        arc4.emit(
+            BalancesUpdated(
+                balance_available=bank_balances.balance_available,
+                balance_total=bank_balances.balance_total,
+                balance_locked=bank_balances.balance_locked,
+            )
+        )
+        return available_balance
 
 
 class SpinManagerInterface(ARC4Contract):
@@ -1095,7 +1121,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(8)
+        self.deployment_version = UInt64(9)
         self.updatable = bool(1)
 
     @arc4.abimethod
@@ -1105,7 +1131,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(8)
+        self.deployment_version = UInt64(9)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1540,6 +1566,8 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
           6 route payments
           b emit event
           7 close box
+          d cond payout
+          e payout claim
         """
         # 1 get the box data
         assert bet_key in self.bet, "bet not found"
@@ -1595,8 +1623,13 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
                 # itxn.Payment(receiver=bet.who.native, amount=payout.native).submit()
         # 7 close box
         del self.bet[bet_key]
+        # d cond payout
         if total_payout > 0:
             itxn.Payment(receiver=bet.who.native, amount=total_payout).submit()
+            # fix balance inflation on payout
+            self._decrement_balance_total(total_payout)
+            self._decrement_balance_available(total_payout)
+        # e payout claim
         itxn.Payment(
             receiver=Txn.sender,
             amount=self._spin_cost(),  # + self._spin_payline_cost(),

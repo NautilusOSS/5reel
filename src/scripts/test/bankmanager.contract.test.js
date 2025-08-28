@@ -13,7 +13,10 @@ import {
   getAccount,
   fund,
   withdraw,
+  getBalances,
+  syncBalance,
 } from "../command.js";
+import algosdk from "algosdk";
 
 const acc = {
   sender: addressses.deployer,
@@ -102,6 +105,25 @@ describe("bankman: Bank Manager Testing", function () {
       ...acc,
     });
     expect(withdrawR.success).to.be.false;
+  });
+
+  it("Should sync balance", async function () {
+    const balances0 = await getBalances({
+      appId,
+    });
+    await fund(algosdk.getApplicationAddress(appId), 1e6);
+    await syncBalance({
+      appId,
+    });
+    const balances1 = await getBalances({
+      appId,
+    });
+    console.log("balances0", balances0);
+    console.log("balances1", balances1);
+    expect(balances0.balanceLocked).to.equal(0);
+    expect(balances1.balanceLocked).to.equal(0);
+    expect(balances1.balanceAvailable).to.equal(balances0.balanceAvailable + 1);
+    expect(balances1.balanceTotal).to.equal(balances0.balanceTotal + 1);
   });
 
   // it("Should reject withdrawals exceeding total balance", async function () {

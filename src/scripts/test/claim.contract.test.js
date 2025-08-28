@@ -29,6 +29,8 @@ import {
   claim,
   touch,
   algodClient,
+  getBalances,
+  syncBalance,
 } from "../command.js";
 import algosdk from "algosdk";
 import BigNumber from "bignumber.js";
@@ -42,7 +44,7 @@ describe("bet-claim: Bet Claim Testing", function () {
   let betKey;
   before(async function () {
     const acc = await getAccount();
-    await fund(acc.addr, 10e6);
+    await fund(acc.addr, 1e6);
     const { appId: id0 } = await deploy({
       type: "Beacon",
       name: "Beacon",
@@ -216,6 +218,81 @@ describe("bet-claim: Bet Claim Testing", function () {
     });
     console.log("");
     expect(claimR.success).to.be.true;
+  });
+
+  it("Should adjust total and available balance on claim", async function () {
+    let claimR;
+    do {
+      await touch({
+        appId: beaconAppId,
+        ...acc,
+      });
+      claimR = await claim({
+        appId: slotMachineAppId,
+        betKey,
+        ...acc,
+      });
+    } while (!claimR.success);
+    const balances0 = await getBalances({
+      appId: slotMachineAppId,
+    });
+    let balances1;
+    do {
+      const spinR = await spin({
+        appId: slotMachineAppId,
+        betAmount: 5e6,
+        maxPaylineIndex: 19,
+        index: 0,
+        ...acc,
+      });
+      balances1 = await getBalances({
+        appId: slotMachineAppId,
+      });
+      do {
+        await touch({
+          appId: beaconAppId,
+          ...acc,
+        });
+        claimR = await claim({
+          appId: slotMachineAppId,
+          betKey: spinR,
+          ...acc,
+        });
+      } while (!claimR.success);
+    } while (claimR.returnValue === BigInt(0));
+    const balances2 = await getBalances({
+      appId: slotMachineAppId,
+    });
+    const payout = Number(claimR.returnValue) / 1e6;
+    const lockedChange = balances2.balanceLocked - balances1.balanceLocked;
+    const availableChange =
+      balances2.balanceAvailable - balances1.balanceAvailable;
+    const totalChange = balances2.balanceTotal - balances1.balanceTotal;
+    console.log("payout", payout);
+    console.log("balances0", balances0);
+    console.log("balances1", balances1);
+    console.log("balances2", balances2);
+    console.log("lockedChange", lockedChange);
+    console.log("availableChange", availableChange);
+    console.log("totalChange", totalChange);
+    expect(totalChange).to.equal(-payout);
+    expect(availableChange).to.equal(balances1.balanceLocked - payout);
+    expect(-lockedChange).to.equal(balances1.balanceLocked);
+    expect(claimR.success).to.be.true;
+  });
+
+  it("Should not sync lock if balance locked not zero", async function () {
+    const balances0 = await getBalances({
+      appId: slotMachineAppId,
+    });
+    const syncBalanceR = await syncBalance({
+      appId: slotMachineAppId,
+    });
+    console.log("balance0", balances0);
+    expect(syncBalanceR.success).to.be.false;
+    expect(syncBalanceR.error).match(
+      /logic eval error: assert failed pc=[0-9]+. Details: app=[0-9]+, pc=[0-9]+, opcodes=btoi; !; assert/
+    );
   });
 
   // 1. Double claim attempt - Test that a bet cannot be claimed twice
