@@ -232,7 +232,7 @@ program
     console.log("");
     console.log("Examples:");
     console.log("  # Deploy to testnet with debug mode");
-    console.log('  5reel -n testnet -d deploy -t SlotMachine -n "MySlotMachine"');
+    console.log('  5reel -n testnet -d deploy -t SlotMachine --name "MySlotMachine"');
     console.log("");
     console.log("  # Simulate a spin without sending transaction");
     console.log("  5reel -s spin -a 123 -b 1000 -m 19 -i 0");
@@ -476,7 +476,7 @@ export const deploy = async (options) => {
 program
     .command("deploy")
     .requiredOption("-t, --type <string>", "Specify factory type")
-    .requiredOption("-n, --name <string>", "Specify contract name")
+    .requiredOption("--name <string>", "Specify contract name")
     .option("--debug", "Debug the deployment", false)
     .description("Deploy a specific contract type")
     .action(async (options) => {

@@ -156,13 +156,13 @@ npx tsc
 
 2. Deploy contracts:
 ```bash
-cli deploy -t <contract-name> -n <contract-name>
+cli deploy -t <contract-name> --name <contract-name>
 ```
 
 Example:
 ```bash
-cli deploy -t SlotMachine -n SlotMachine
-cli deploy -t YieldBearingToken -n YieldBearingToken
+cli deploy -t SlotMachine --name SlotMachine
+cli deploy -t YieldBearingToken --name YieldBearingToken
 ```
 
 ## 📊 Contract Costs
