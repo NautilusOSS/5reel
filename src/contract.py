@@ -1772,7 +1772,8 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     ) -> None:
         ###########################################
         # TODO use owner or other auth
-        assert Txn.sender == self.upgrader, "must be authorized"
+        # TODO add auth
+        #assert Txn.sender == self.upgrader, "must be authorized"
         ###########################################
         key_reg_fee = Global.min_txn_fee
         # require payment of min fee to prevent draining
