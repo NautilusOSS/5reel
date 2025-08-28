@@ -10,10 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Enhanced testing coverage for improved system reliability
 - Code optimization and performance improvements
+- Ongoing interface architecture improvements
+- Enhanced OpCode budget management optimizations
 
 ### Changed
 - Ongoing code cleanup and refactoring
 - Continuous testing improvements
+- Interface-based contract design refinements
+- Performance optimizations in critical contract functions
+
+## [0.9] - 2025-08-27
+
+### Added
+- **Interface-Based Architecture**: Enhanced interface pattern implementation for cleaner contract design
+- **OpCode Budget Optimization**: Improved ensure_budget usage with OpUpFeeSource for better performance
+- **Enhanced Contract Structure**: Better separation of concerns between interface and implementation contracts
+- **Performance Improvements**: Optimized critical functions with better budget management
+
+### Changed
+- **Code Organization**: Improved interface contract patterns for better maintainability
+- **Performance**: Enhanced OpCode budget management across all contract functions
+- **Architecture**: Refined interface-based design patterns for future extensibility
+
+### Technical Details
+- **Interface Contracts**: Enhanced BootstrappedInterface, OwnableInterface, ReelManagerInterface, BankManagerInterface, and SpinManagerInterface
+- **Budget Management**: Optimized ensure_budget usage with OpUpFeeSource.GroupCredit across all functions
+- **Code Structure**: Improved separation between interface definitions and implementations
+- **Performance**: Better OpCode budget allocation for grid generation, payline matching, and claim operations
 
 ## [0.8] - 2025-08-27
 
@@ -212,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.9** (2025-08-27): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements
 - **0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
 - **0.5** (2025-08-22): Treasury lock adjustment and contract versioning
@@ -223,6 +247,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.9 - Performance & Architecture
+- Interface-based architecture improvements for cleaner contract design
+- OpCode budget optimization with ensure_budget and OpUpFeeSource
+- Enhanced contract structure with better separation of concerns
+- Performance improvements in critical functions
+- Refined interface patterns for future extensibility
 
 ### v0.8 - Enhanced Transparency
 - Balance update events for transparent tracking
@@ -296,5 +327,6 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 7. **Treasury & Versioning** (v0.5): Simplified treasury locks and added contract versioning
 8. **Comprehensive Token Lockup** (v0.7): Detailed Token Lockup Mechanism Documentation, Enhanced System Documentation, Improved Yield-Bearing Token Docs, Enhanced Testing Coverage, RTP Testing Improvements
 9. **Enhanced Transparency** (v0.8): Balance update events, comprehensive event system, data structures documentation, claim functionality testing, improved documentation structure
+10. **Performance & Architecture** (v0.9): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements, refined interface patterns
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.

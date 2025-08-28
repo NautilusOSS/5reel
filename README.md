@@ -15,6 +15,8 @@ A comprehensive slot machine gaming platform built on the Algorand blockchain us
 - **Enhanced Documentation** with detailed system explanations
 - **Balance Update Events** for transparent financial tracking
 - **Structured Documentation** with separate events and data structures guides
+- **Optimized OpCode Budget Management** using ensure_budget and OpUpFeeSource
+- **Interface-Based Architecture** for clean contract design and extensibility
 
 ## 🏗️ Architecture
 
@@ -25,7 +27,7 @@ The system is built with a modular architecture consisting of several key compon
 - **SpinManager**: Handles betting, spinning, and payout logic
 - **BankManager**: Manages contract balances and financial operations
 - **YieldBearingToken**: ERC-20 compatible token with yield generation
-- **Base Contracts**: Ownable, Bootstrapped, and Touchable interfaces
+- **Base Contracts**: Ownable, Bootstrapped, and Touchable interfaces with clean interface patterns
 
 ## 🎯 Payout System
 
@@ -190,6 +192,8 @@ Each contract has specific bootstrap costs:
 - **Claim Round Validation**: Prevents manipulation
 - **Automatic Expiration**: Unclaimed bets expire automatically
 - **Balance Event Tracking**: All balance changes are emitted as events for transparency
+- **Interface-Based Design**: Clean separation of concerns with interface contracts
+- **Optimized OpCode Management**: Efficient budget management using ensure_budget and OpUpFeeSource
 
 ## 📚 Documentation
 
@@ -202,6 +206,7 @@ Each contract has specific bootstrap costs:
 
 ## 🏷️ Version History
 
+- **v0.9** (2025-08-27): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements
 - **v0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **v0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
 - **v0.5** (2025-08-22): Treasury lock adjustment and contract versioning
@@ -236,6 +241,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Cross-chain compatibility
 - Enhanced yield distribution models
 - Advanced analytics and reporting tools
+- Migration to opensubmarine framework for enhanced functionality
 
 ---
 
