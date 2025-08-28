@@ -1232,23 +1232,25 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             arc4.UInt64(top_5),
         )
 
-    @arc4.abimethod(readonly=True)
-    def get_seed_bet_grid(self, seed: Bytes32, bet_key: Bytes56) -> Bytes15:
-        """
-        Returns grid from seed and bet grid
-        """
-        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
-        combined = seed.bytes + bet_key.bytes
-        hashed = op.sha256(combined)
-        return Bytes15.from_bytes(self._get_grid(hashed))
+    # TODO move to TestingSlotMachine
+    # @arc4.abimethod(readonly=True)
+    # def get_seed_bet_grid(self, seed: Bytes32, bet_key: Bytes56) -> Bytes15:
+    #     """
+    #     Returns grid from seed and bet grid
+    #     """
+    #     ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+    #     combined = seed.bytes + bet_key.bytes
+    #     hashed = op.sha256(combined)
+    #     return Bytes15.from_bytes(self._get_grid(hashed))
 
-    @arc4.abimethod(readonly=True)
-    def get_grid(self, seed: Bytes32) -> Bytes15:
-        """
-        Get the grid of the slot machine.
-        """
-        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
-        return Bytes15.from_bytes(self._get_grid(seed.bytes))
+    # TODO move to TestingSlotMachine
+    # @arc4.abimethod(readonly=True)
+    # def get_grid(self, seed: Bytes32) -> Bytes15:
+    #     """
+    #     Get the grid of the slot machine.
+    #     """
+    #     ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+    #     return Bytes15.from_bytes(self._get_grid(seed.bytes))
 
     @subroutine
     def _get_grid(self, seed: Bytes) -> Bytes:
@@ -1264,13 +1266,14 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             + self._get_reel_window(UInt64(4), reel_tops[4].native)
         )
 
-    @arc4.abimethod(readonly=True)
-    def get_grid_payline_symbols(
-        self, grid: Bytes15, payline_index: arc4.UInt64
-    ) -> Bytes5:
-        return Bytes5.from_bytes(
-            self._get_grid_payline_symbols(grid.bytes, payline_index.native)
-        )
+    # TODO move to TestingSlotMachine
+    # @arc4.abimethod(readonly=True)
+    # def get_grid_payline_symbols(
+    #     self, grid: Bytes15, payline_index: arc4.UInt64
+    # ) -> Bytes5:
+    #     return Bytes5.from_bytes(
+    #         self._get_grid_payline_symbols(grid.bytes, payline_index.native)
+    #     )
 
     @subroutine
     def _get_grid_payline_symbols(self, grid: Bytes, payline_index: UInt64) -> Bytes:
@@ -1289,9 +1292,10 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
     # --- Paylines ---
 
-    @arc4.abimethod(readonly=True)
-    def get_payline_count(self) -> arc4.UInt64:
-        return arc4.UInt64(self._get_payline_count())
+    # TODO move to TestingSlotMachine
+    # @arc4.abimethod(readonly=True)
+    # def get_payline_count(self) -> arc4.UInt64:
+    #     return arc4.UInt64(self._get_payline_count())
 
     @subroutine
     def _get_payline_count(self) -> UInt64:
@@ -1674,13 +1678,14 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     def _get_block_seed(self, round: UInt64) -> Bytes:
         return op.Block.blk_seed(round)[-32:]
 
-    @arc4.abimethod(readonly=True)
-    def get_payout_multiplier(
-        self, symbol: arc4.Byte, count: arc4.UInt64
-    ) -> arc4.UInt64:
-        return arc4.UInt64(
-            self._get_payout_multiplier(PaylineMatch(count=count, symbol=symbol))
-        )
+    # TODO move to TestingSlotMachine
+    # @arc4.abimethod(readonly=True)
+    # def get_payout_multiplier(
+    #     self, symbol: arc4.Byte, count: arc4.UInt64
+    # ) -> arc4.UInt64:
+    #     return arc4.UInt64(
+    #         self._get_payout_multiplier(PaylineMatch(count=count, symbol=symbol))
+    #     )
 
     @subroutine
     def _get_payout_multiplier(self, pm: PaylineMatch) -> UInt64:
