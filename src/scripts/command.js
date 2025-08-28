@@ -1513,11 +1513,7 @@ program
     .option("--simulate", "Simulate the sync-balance", false)
     .action(async (options) => {
     const syncBalanceR = await syncBalance({
-        ...options,
         appId: Number(options.appId),
-        addr: options.addr,
-        simulate: options.simulate,
-        debug: options.debug,
     });
     console.log(syncBalanceR);
 });
