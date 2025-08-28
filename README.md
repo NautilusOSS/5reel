@@ -17,6 +17,8 @@ A comprehensive slot machine gaming platform built on the Algorand blockchain us
 - **Structured Documentation** with separate events and data structures guides
 - **Optimized OpCode Budget Management** using ensure_budget and OpUpFeeSource
 - **Interface-Based Architecture** for clean contract design and extensibility
+- **Advanced Participation Testing** for comprehensive system validation
+- **Enhanced Error Handling** with detailed error messages and validation
 
 ## 🏗️ Architecture
 
@@ -123,6 +125,11 @@ mocha
 mocha src/scripts/test/contract.test.js
 mocha src/scripts/test/ybt.contract.test.js
 mocha src/scripts/test/claim.contract.test.js
+mocha src/scripts/test/odds.contract.test.js
+mocha src/scripts/test/ownable.contract.test.js
+mocha src/scripts/test/reelmanager.contract.test.js
+mocha src/scripts/test/spinmanager.contract.test.js
+mocha src/scripts/test/bankmanager.contract.test.js
 ```
 
 ### Test Coverage
@@ -135,6 +142,9 @@ The project includes comprehensive test coverage for:
 - Access control and security features
 - Grid generation and payline matching
 - Claim functionality and balance tracking
+- Participation and validation testing
+- Error handling and edge cases
+- Token lockup mechanisms and withdrawal limits
 
 ## 🚀 Deployment
 
@@ -194,6 +204,8 @@ Each contract has specific bootstrap costs:
 - **Balance Event Tracking**: All balance changes are emitted as events for transparency
 - **Interface-Based Design**: Clean separation of concerns with interface contracts
 - **Optimized OpCode Management**: Efficient budget management using ensure_budget and OpUpFeeSource
+- **Enhanced Error Handling**: Comprehensive validation and error messages
+- **Participation Testing**: Thorough testing of system participation and validation
 
 ## 📚 Documentation
 
@@ -206,6 +218,7 @@ Each contract has specific bootstrap costs:
 
 ## 🏷️ Version History
 
+- **v0.10** (2025-08-28): Enhanced testing coverage, participation testing improvements, error handling enhancements, code optimization and performance improvements
 - **v0.9** (2025-08-27): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements
 - **v0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **v0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
@@ -242,6 +255,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Enhanced yield distribution models
 - Advanced analytics and reporting tools
 - Migration to opensubmarine framework for enhanced functionality
+- Enhanced participation and validation testing
+- Advanced error handling and user feedback systems
 
 ---
 

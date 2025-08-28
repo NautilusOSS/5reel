@@ -8,16 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Enhanced testing coverage for improved system reliability
-- Code optimization and performance improvements
 - Ongoing interface architecture improvements
-- Enhanced OpCode budget management optimizations
+- Continuous testing enhancements and optimizations
+- Performance monitoring and optimization efforts
 
 ### Changed
 - Ongoing code cleanup and refactoring
 - Continuous testing improvements
 - Interface-based contract design refinements
 - Performance optimizations in critical contract functions
+
+## [0.10] - 2025-08-28
+
+### Added
+- **Enhanced Testing Coverage**: Improved test coverage across all contract components for better system reliability
+- **Participation Testing Improvements**: Enhanced testing of system participation and validation mechanisms
+- **Error Handling Enhancements**: Comprehensive validation and detailed error messages for better user experience
+- **Code Optimization**: Performance improvements and code cleanup across multiple contract functions
+- **Advanced Validation Testing**: Enhanced testing of edge cases and error conditions
+
+### Changed
+- **Testing Infrastructure**: Improved test framework and validation capabilities
+- **Error Handling**: Enhanced error messages and validation logic for better debugging
+- **Code Quality**: Ongoing improvements to code structure and maintainability
+- **Performance**: Optimized critical functions and improved resource management
+
+### Technical Details
+- **Test Coverage**: Enhanced testing across multiple contract components including YBT, BankManager, and SpinManager
+- **Error Validation**: Improved error handling with detailed error messages and validation
+- **Code Optimization**: Performance improvements and cleanup across contract functions
+- **Testing Framework**: Enhanced test infrastructure for better reliability and coverage
 
 ## [0.9] - 2025-08-27
 
@@ -235,6 +255,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.10** (2025-08-28): Enhanced testing coverage, participation testing improvements, error handling enhancements, code optimization and performance improvements
 - **0.9** (2025-08-27): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements
 - **0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
 - **0.7** (2025-08-24): Documentation overhaul, enhanced slot machine logic, and comprehensive testing improvements
@@ -247,6 +268,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+
+### v0.10 - Enhanced Testing & Validation
+- Enhanced testing coverage across all contract components
+- Participation testing improvements for comprehensive system validation
+- Error handling enhancements with detailed validation messages
+- Code optimization and performance improvements
+- Advanced validation testing for edge cases and error conditions
 
 ### v0.9 - Performance & Architecture
 - Interface-based architecture improvements for cleaner contract design
@@ -328,5 +356,6 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 8. **Comprehensive Token Lockup** (v0.7): Detailed Token Lockup Mechanism Documentation, Enhanced System Documentation, Improved Yield-Bearing Token Docs, Enhanced Testing Coverage, RTP Testing Improvements
 9. **Enhanced Transparency** (v0.8): Balance update events, comprehensive event system, data structures documentation, claim functionality testing, improved documentation structure
 10. **Performance & Architecture** (v0.9): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements, refined interface patterns
+11. **Enhanced Testing & Validation** (v0.10): Enhanced testing coverage, participation testing improvements, error handling enhancements, code optimization and performance improvements
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.
