@@ -249,6 +249,13 @@ export const addressses = {
 export const sks = {
     deployer: sk,
 };
+// Debug: Log account info if MN is set
+if (MN) {
+    console.log("Mnemonic loaded, deployer address:", addr);
+}
+else {
+    console.warn("No mnemonic (MN) found in environment variables");
+}
 // DEVNET
 const ALGO_SERVER = "http://localhost";
 const ALGO_PORT = 4001;
@@ -274,17 +281,27 @@ const getCurrentNetworkConfig = () => {
             port: ALGO_PORT,
             indexerServer: ALGO_INDEXER_SERVER,
             indexerPort: ALGO_INDEXER_PORT,
-            token: process.env.ALGOD_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            indexerToken: process.env.INDEXER_TOKEN || ""
+            token: process.env.ALGOD_TOKEN ||
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            indexerToken: process.env.INDEXER_TOKEN || "",
         };
     }
+    console.log("Global options found:", globalOptions);
     const config = {
-        server: globalOptions.algodServer || globalThis.ALGO_SERVER || ALGO_SERVER,
+        server: globalOptions.algodServer ||
+            globalThis.ALGO_SERVER ||
+            ALGO_SERVER,
         port: globalOptions.algodPort || globalThis.ALGO_PORT || ALGO_PORT,
-        indexerServer: globalOptions.indexerServer || globalThis.ALGO_INDEXER_SERVER || ALGO_INDEXER_SERVER,
-        indexerPort: globalOptions.indexerPort || globalThis.ALGO_INDEXER_PORT || ALGO_INDEXER_PORT,
-        token: globalOptions.algodToken || process.env.ALGOD_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        indexerToken: globalOptions.indexerToken || process.env.INDEXER_TOKEN || ""
+        indexerServer: globalOptions.indexerServer ||
+            globalThis.ALGO_INDEXER_SERVER ||
+            ALGO_INDEXER_SERVER,
+        indexerPort: globalOptions.indexerPort ||
+            globalThis.ALGO_INDEXER_PORT ||
+            ALGO_INDEXER_PORT,
+        token: globalOptions.algodToken ||
+            process.env.ALGOD_TOKEN ||
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        indexerToken: globalOptions.indexerToken || process.env.INDEXER_TOKEN || "",
     };
     if (globalOptions.debug) {
         console.log("Network configuration:", config);
@@ -314,6 +331,7 @@ const makeSpec = (methods) => {
     };
 };
 const signSendAndConfirm = async (txns, sk) => {
+    const { algodClient: currentAlgodClient } = getCurrentClients();
     const stxns = txns
         .map((t) => new Uint8Array(Buffer.from(t, "base64")))
         .map((t) => {
@@ -321,11 +339,11 @@ const signSendAndConfirm = async (txns, sk) => {
         return txn;
     })
         .map((t) => algosdk.signTransaction(t, sk));
-    const res = await algodClient
+    const res = await currentAlgodClient
         .sendRawTransaction(stxns.map((txn) => txn.blob))
         .do();
     console.log(res);
-    return await Promise.all(stxns.map((res) => algosdk.waitForConfirmation(algodClient, res.txID, 4)));
+    return await Promise.all(stxns.map((res) => algosdk.waitForConfirmation(currentAlgodClient, res.txID, 4)));
 };
 export const getAccount = async () => {
     const acc = algosdk.generateAccount();
@@ -463,7 +481,9 @@ export const deploy = async (options) => {
         name: options.name || "",
         sender: acc,
     };
-    const appClient = Client ? new Client(clientParams, getCurrentClients().algodClient) : null;
+    const appClient = Client
+        ? new Client(clientParams, getCurrentClients().algodClient)
+        : null;
     if (appClient) {
         const app = await appClient.deploy({
             deployTimeParams: {},
@@ -1161,32 +1181,94 @@ export const arc200TotalSupply = async (options) => {
     return totalSupplyR.returnValue;
 };
 export const arc200PostUpdate = async (options) => {
-    const ci = new CONTRACT(Number(options.apid), algodClient, indexerClient, makeSpec(YieldBearingTokenAppSpec.contract.methods), {
-        addr: addr,
-        sk: sk,
-    });
-    ci.setFee(2000);
-    const postUpdateR = await ci.post_update();
-    if (options.debug) {
-        console.log(postUpdateR);
-    }
-    if (postUpdateR.success) {
-        if (!options.simulate) {
-            await signSendAndConfirm(postUpdateR.txns, sk);
+    try {
+        console.log("=== arc200PostUpdate START ===");
+        if (options.debug) {
+            console.log("PostUpdateOptions:", options);
         }
+        // Validate app ID
+        const appId = Number(options.apid);
+        if (isNaN(appId) || appId <= 0) {
+            console.error("Invalid app ID:", options.apid);
+            return false;
+        }
+        const addr = options?.addr || addressses.deployer;
+        const sk = options?.sk || sks.deployer;
+        const acc = { addr, sk };
+        if (options.debug) {
+            console.log("App ID:", appId);
+            console.log("Address:", addr);
+        }
+        console.log("Creating contract instance...");
+        const ci = makeContract(appId, YieldBearingTokenAppSpec, acc);
+        console.log("Contract instance created successfully");
+        ci.setFee(2000);
+        console.log("Fee set to 2000");
+        if (options.debug) {
+            console.log("Calling post_update...");
+        }
+        console.log("About to call ci.post_update()...");
+        const postUpdateR = await ci.post_update();
+        console.log("post_update() call completed");
+        if (options.debug) {
+            console.log("post_update result:", postUpdateR);
+        }
+        if (postUpdateR.success) {
+            console.log("post_update was successful");
+            if (!options.simulate) {
+                if (options.debug) {
+                    console.log("Executing transaction (not simulating)...");
+                }
+                await signSendAndConfirm(postUpdateR.txns, sk);
+                if (options.debug) {
+                    console.log("Transaction confirmed");
+                }
+            }
+            else {
+                if (options.debug) {
+                    console.log("Simulation mode - skipping transaction execution");
+                }
+            }
+        }
+        else {
+            console.log("post_update failed:", postUpdateR);
+        }
+        console.log("=== arc200PostUpdate END ===");
+        return postUpdateR.success;
     }
-    return postUpdateR.success;
+    catch (e) {
+        console.error("Error in arc200PostUpdate:", e);
+        console.error("Error stack:", e instanceof Error ? e.stack : "No stack trace");
+        return false; // Return false on error
+    }
 };
 program
     .command("post-update")
     .description("Post update the contract")
     .requiredOption("-a, --apid <number>", "Specify the application ID")
-    .option("-s, --simulate", "Simulate the post update", false)
+    .option("--simulate", "Simulate the post update", false)
     .option("--debug", "Debug the deployment", false)
+    .option("--addr <string>", "Specify the address")
     .action(async (options) => {
-    const success = await arc200PostUpdate(options);
-    if (!success) {
-        console.log("Failed to post update");
+    try {
+        console.log("Starting post-update command...");
+        const success = await arc200PostUpdate({
+            ...options,
+            apid: Number(options.apid),
+            addr: options.addr,
+            sk: sks.deployer,
+            debug: options.debug,
+            simulate: options.simulate,
+        });
+        if (!success) {
+            console.log("Failed to post update");
+        }
+        else {
+            console.log("Post update completed successfully");
+        }
+    }
+    catch (error) {
+        console.error("Error in post-update command:", error);
     }
 });
 export const setName = async (options) => {
