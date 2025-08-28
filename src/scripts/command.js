@@ -1439,6 +1439,15 @@ export const ybtGetDepositCost = async (options) => {
 };
 // bankman
 const decodeBalances = (balances) => {
+    console.log("decodeBalances input:", balances);
+    console.log("balances type:", typeof balances);
+    console.log("balances length:", balances?.length);
+    console.log("balances[0]:", balances?.[0]);
+    console.log("balances[1]:", balances?.[1]);
+    console.log("balances[2]:", balances?.[2]);
+    if (!balances || !Array.isArray(balances) || balances.length < 3) {
+        throw new Error(`Invalid balances format: expected array with at least 3 elements, got ${JSON.stringify(balances)}`);
+    }
     return {
         balanceAvailable: new BigNumber(balances[0]).div(1e6).toNumber(),
         balanceTotal: new BigNumber(balances[1]).div(1e6).toNumber(),
@@ -1453,7 +1462,18 @@ export const getBalances = async (options) => {
     const ci = makeContract(options.appId, BankManagerAppSpec, acc);
     const getBalancesR = await ci.get_balances();
     if (options.debug) {
-        console.log(getBalancesR);
+        console.log("getBalancesR:", getBalancesR);
+        console.log("getBalancesR.returnValue:", getBalancesR.returnValue);
+        console.log("getBalancesR.success:", getBalancesR.success);
+    }
+    // Check if the call was successful and returnValue exists
+    if (!getBalancesR.success) {
+        console.error("get_balances call failed:", getBalancesR);
+        throw new Error("Failed to get balances from contract");
+    }
+    if (!getBalancesR.returnValue || getBalancesR.returnValue.length === 0) {
+        console.error("No return value from get_balances:", getBalancesR);
+        throw new Error("No balances returned from contract");
     }
     return decodeBalances(getBalancesR.returnValue);
 };
@@ -1514,6 +1534,7 @@ program
     .action(async (options) => {
     const syncBalanceR = await syncBalance({
         appId: Number(options.appId),
+        addr: options.addr,
     });
     console.log(syncBalanceR);
 });
