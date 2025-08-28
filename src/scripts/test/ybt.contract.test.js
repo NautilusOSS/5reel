@@ -25,6 +25,7 @@ import {
   invalidBetKey,
   ybtGetMaxWithdrawableAmount,
   ybtGetDepositCost,
+  participate,
 } from "../command.js";
 import algosdk from "algosdk";
 import BigNumber from "bignumber.js";
@@ -797,4 +798,40 @@ describe("ybt: Yield Bearing Token Testing", function () {
     expect(balance4).to.equal(BigInt(1e6));
   });
 
+  it("Should participate", async function () {
+    // Last vote round:           10428229
+    // Last block proposal round: 10428133
+    // Effective first round:     8817765
+    // Effective last round:      10428243
+    // First round:               8817147
+    // Last round:                10817147
+    // Key dilution:              1415
+    // Selection key:             3SQctjNhEYPN6Sp6ml1yxt6AT2OpNbOsZrbwvphnIKU=
+    // Voting key:                /AGSIMel8MINHaihH12v+s8uuhI3JZnFNQqLxoXDZg0=
+    // State proof key:           PYSBcF2P+erOTRc07sN0Mdy6j7t14IbU3a4WxacAtGx42th/wkyZ/6T9HD5snW4dRTSYnpcpMmwr/nejkftizQ==
+    const participateR = await participate({
+      appId: slotMachineAppId,
+      vote_k: new Uint8Array(
+        Buffer.from("/AGSIMel8MINHaihH12v+s8uuhI3JZnFNQqLxoXDZg0=", "base64")
+      ),
+      sel_k: new Uint8Array(
+        Buffer.from("3SQctjNhEYPN6Sp6ml1yxt6AT2OpNbOsZrbwvphnIKU=", "base64")
+      ),
+      vote_fst: 8817147,
+      vote_lst: 10817147,
+      vote_kd: 1415,
+      sp_key: new Uint8Array(
+        Buffer.from(
+          "PYSBcF2P+erOTRc07sN0Mdy6j7t14IbU3a4WxacAtGx42th/wkyZ/6T9HD5snW4dRTSYnpcpMmwr/nejkftizQ==",
+          "base64"
+        )
+      ),
+      ...acc,
+      debug: true,
+    });
+    expect(participateR.success).to.be.false;
+    expect(participateR.error).match(
+      /logic eval error: transaction tries to register keys to go online, but first voting round is beyond the round after last valid round. Details: app=[0-9]+, pc=[0-9]+, opcodes=itxn_field TypeEnum; itxn_field Fee; itxn_submit/
+    );
+  });
 });

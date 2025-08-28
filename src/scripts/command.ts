@@ -2123,11 +2123,15 @@ const decodeBalances = (balances: any) => {
   console.log("balances[0]:", balances?.[0]);
   console.log("balances[1]:", balances?.[1]);
   console.log("balances[2]:", balances?.[2]);
-  
+
   if (!balances || !Array.isArray(balances) || balances.length < 3) {
-    throw new Error(`Invalid balances format: expected array with at least 3 elements, got ${JSON.stringify(balances)}`);
+    throw new Error(
+      `Invalid balances format: expected array with at least 3 elements, got ${JSON.stringify(
+        balances
+      )}`
+    );
   }
-  
+
   return {
     balanceAvailable: new BigNumber(balances[0]).div(1e6).toNumber(),
     balanceTotal: new BigNumber(balances[1]).div(1e6).toNumber(),
@@ -2154,18 +2158,18 @@ export const getBalances: any = async (options: GetBalancesOptions) => {
     console.log("getBalancesR.returnValue:", getBalancesR.returnValue);
     console.log("getBalancesR.success:", getBalancesR.success);
   }
-  
+
   // Check if the call was successful and returnValue exists
   if (!getBalancesR.success) {
     console.error("get_balances call failed:", getBalancesR);
     throw new Error("Failed to get balances from contract");
   }
-  
+
   if (!getBalancesR.returnValue || getBalancesR.returnValue.length === 0) {
     console.error("No return value from get_balances:", getBalancesR);
     throw new Error("No balances returned from contract");
   }
-  
+
   return decodeBalances(getBalancesR.returnValue);
 };
 
@@ -2261,3 +2265,69 @@ program
 if (import.meta.url === `file://${process.argv[1]}`) {
   program.parse();
 }
+
+// participate
+
+interface ParticipateOptions {
+  appId: number;
+  vote_k: Uint8Array[];
+  sel_k: Uint8Array[];
+  vote_fst: number;
+  vote_lst: number;
+  vote_kd: number;
+  sp_key: Uint8Array[];
+  addr?: string;
+  sk?: any;
+  simulate?: boolean;
+  debug?: boolean;
+}
+export const participate: any = async (options: ParticipateOptions) => {
+  if (options.debug) {
+    console.log(options);
+  }
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ctcInfo = Number(options.appId);
+  console.log("ctcInfo:", ctcInfo);
+  const ci = makeContract(ctcInfo, SlotMachineAppSpec, acc);
+  ci.setPaymentAmount(2e6);
+  const participateR = await ci.participate(
+    options.vote_k,
+    options.sel_k,
+    options.vote_fst,
+    options.vote_lst,
+    options.vote_kd,
+    options.sp_key
+  );
+  if (options.debug) {
+    console.log(participateR);
+  }
+  if (participateR.success) {
+    if (!options.simulate) {
+      await signSendAndConfirm(participateR.txns, sk);
+    }
+  }
+  return participateR;
+};
+program
+  .command("participate")
+  .description("Participate in the airdrop")
+  .option("-a, --apid <number>", "Specify the application ID")
+  .option("-k, --vote-k <string>", "Specify the vote key")
+  .option("-s, --sel-k <string>", "Specify the selection key")
+  .option("-f, --vote-fst <number>", "Specify the vote first")
+  .option("-l, --vote-lst <number>", "Specify the vote last")
+  .option("-d, --vote-kd <number>", "Specify the vote key duration")
+  .action(async (options) => {
+    const participateR = await participate({
+      ...options,
+      apid: Number(options.apid),
+    });
+    console.log(participateR);
+    if (participateR.success) {
+      console.log("Participation successful");
+    } else {
+      console.log("Participation failed");
+    }
+  });

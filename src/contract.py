@@ -39,6 +39,7 @@ from opensubmarine.utils.algorand import require_payment
 
 Bytes500: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[500]]
 Bytes100: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[100]]
+Bytes64: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[64]]
 Bytes56: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[56]]
 Bytes32: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[32]]
 Bytes15: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[15]]
@@ -50,6 +51,26 @@ Bytes1: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[1]]
 BOX_COST_BALANCE = 28500
 MAX_CLAIM_ROUND_DELTA = 1000
 SCALING_FACTOR = 10**12
+
+# participation
+
+
+class PartKeyInfo(arc4.Struct):
+    address: arc4.Address
+    vote_key: Bytes32
+    selection_key: Bytes32
+    vote_first: arc4.UInt64
+    vote_last: arc4.UInt64
+    vote_key_dilution: arc4.UInt64
+    state_proof_key: Bytes64
+
+
+class Participated(arc4.Struct):
+    who: arc4.Address
+    partkey: PartKeyInfo
+
+
+# bank
 
 
 class BalancesUpdated(arc4.Struct):
@@ -567,6 +588,7 @@ class BankManagerInterface(ARC4Contract):
         Get the total balance
         """
         return UInt64(0)
+
 
 class BankManager(BankManagerInterface, Bootstrapped, Ownable):
     """
@@ -1121,8 +1143,9 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(9)
+        self.deployment_version = UInt64(10)
         self.updatable = bool(1)
+        # TODO add missing ownable state
 
     @arc4.abimethod
     def post_update(self) -> None:
@@ -1131,7 +1154,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(9)
+        self.deployment_version = UInt64(10)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1708,6 +1731,76 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
                 return UInt64(0)
         else:  # _
             return UInt64(0)
+
+    # TODO use stakeable to track participation in future contract version
+
+    # participation section
+
+    @arc4.abimethod
+    def participate(
+        self,
+        vote_k: Bytes32,
+        sel_k: Bytes32,
+        vote_fst: arc4.UInt64,
+        vote_lst: arc4.UInt64,
+        vote_kd: arc4.UInt64,
+        sp_key: Bytes64,
+    ) -> None:
+        self._participate(
+            vote_k.bytes,
+            sel_k.bytes,
+            vote_fst.native,
+            vote_lst.native,
+            vote_kd.native,
+            sp_key.bytes,
+        )
+
+    @subroutine
+    def _participate(
+        self,
+        vote_k: Bytes,
+        sel_k: Bytes,
+        vote_fst: UInt64,
+        vote_lst: UInt64,
+        vote_kd: UInt64,
+        sp_key: Bytes,
+    ) -> None:
+        ###########################################
+        # TODO use owner or other auth
+        assert Txn.sender == self.upgrader, "must be authorized"
+        ###########################################
+        key_reg_fee = Global.min_txn_fee
+        # require payment of min fee to prevent draining
+        assert require_payment(Txn.sender) >= key_reg_fee, "payment amount accurate"
+        # REM set payment to 2 VOI to take advantage of protocol block rewards
+        ###########################################
+        arc4.emit(
+            Participated(
+                arc4.Address(Txn.sender),
+                PartKeyInfo(
+                    address=arc4.Address(Txn.sender),
+                    vote_key=Bytes32.from_bytes(vote_k),
+                    selection_key=Bytes32.from_bytes(sel_k),
+                    vote_first=arc4.UInt64(vote_fst),
+                    vote_last=arc4.UInt64(vote_lst),
+                    vote_key_dilution=arc4.UInt64(vote_kd),
+                    state_proof_key=Bytes64.from_bytes(sp_key),
+                ),
+            )
+        )
+        itxn.KeyRegistration(
+            vote_key=vote_k,
+            selection_key=sel_k,
+            vote_first=vote_fst,
+            vote_last=vote_lst,
+            vote_key_dilution=vote_kd,
+            state_proof_key=sp_key,
+            fee=key_reg_fee,
+        ).submit()
+
+
+# TODO remove stakeable in future it should be the yield bearing source
+#      instead if network token
 
 
 # implements BootstrappedInterface

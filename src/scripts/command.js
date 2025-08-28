@@ -1542,3 +1542,47 @@ program
 if (import.meta.url === `file://${process.argv[1]}`) {
     program.parse();
 }
+export const participate = async (options) => {
+    if (options.debug) {
+        console.log(options);
+    }
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ctcInfo = Number(options.appId);
+    console.log("ctcInfo:", ctcInfo);
+    const ci = makeContract(ctcInfo, SlotMachineAppSpec, acc);
+    ci.setPaymentAmount(2e6);
+    const participateR = await ci.participate(options.vote_k, options.sel_k, options.vote_fst, options.vote_lst, options.vote_kd, options.sp_key);
+    if (options.debug) {
+        console.log(participateR);
+    }
+    if (participateR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(participateR.txns, sk);
+        }
+    }
+    return participateR;
+};
+program
+    .command("participate")
+    .description("Participate in the airdrop")
+    .option("-a, --apid <number>", "Specify the application ID")
+    .option("-k, --vote-k <string>", "Specify the vote key")
+    .option("-s, --sel-k <string>", "Specify the selection key")
+    .option("-f, --vote-fst <number>", "Specify the vote first")
+    .option("-l, --vote-lst <number>", "Specify the vote last")
+    .option("-d, --vote-kd <number>", "Specify the vote key duration")
+    .action(async (options) => {
+    const participateR = await participate({
+        ...options,
+        apid: Number(options.apid),
+    });
+    console.log(participateR);
+    if (participateR.success) {
+        console.log("Participation successful");
+    }
+    else {
+        console.log("Participation failed");
+    }
+});
