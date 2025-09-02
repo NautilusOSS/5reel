@@ -485,6 +485,7 @@ Potential improvements include:
 
 ## Related Documentation
 
+- **[Spin and Claim Guide](spin-and-claim-guide.md)**: Complete guide to placing bets, waiting for outcomes, and claiming winnings
 - **[Data Structures Documentation](data-structures.md)**: Complete reference for all smart contract data structures, types, and usage examples
 - **[Events Documentation](events.md)**: Comprehensive guide to all smart contract events, monitoring, and analytics
 - **[Yield-Bearing Token Documentation](yield-bearing-token.md)**: Detailed explanation of the yield token mechanics and mathematics

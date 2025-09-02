@@ -54,6 +54,8 @@ import {
   simulateGridPaylineSymbols,
   getBalances,
   claim,
+  getBlockSeedCall,
+  getBlockSeedBetKeyGridTotalPayout,
   //getPaylineCount,
 } from "../command.js";
 
@@ -1020,5 +1022,117 @@ describe("slotmac: Slot Machine Payout Testing", function () {
     console.log("Copy these two lines to the plotter:");
     console.log(JSON.stringify(rtpData.map((point) => point.spin)));
     console.log(JSON.stringify(rtpData.map((point) => point.rtp)));
+  });
+
+  it("Should get block seed", async function () {
+    console.log("=== BLOCK SEED TEST ===");
+
+    // Get current blockchain status
+    const status = await algodClient.status().do();
+    const currentRound = status["last-round"];
+    console.log("Current blockchain round:", currentRound);
+
+    // Calculate target block (use previous block to ensure it exists)
+    const targetBlock = Math.max(currentRound - 2, 0);
+    console.log("Target block for seed retrieval:", targetBlock);
+
+    // Verify the target block exists by checking if it's valid
+    if (targetBlock === 0) {
+      console.log("Warning: Using block 0 (genesis block)");
+    } else {
+      console.log("Using previous block for seed retrieval");
+    }
+
+    // Retrieve the block seed
+    console.log(
+      "Calling getBlockSeed with appId:",
+      appId,
+      "and block:",
+      targetBlock
+    );
+    const blockSeed = await getBlockSeedCall({
+      appId,
+      round: targetBlock,
+      debug: true,
+    });
+    const blockSeedHex = Buffer.from(blockSeed).toString("hex");
+
+    // Log the result
+    console.log("Retrieved block seed:", blockSeed);
+    console.log("Block seed type:", typeof blockSeed);
+    console.log(
+      "Block seed length:",
+      blockSeed ? blockSeed.length : "null/undefined"
+    );
+
+    // Basic validation
+    expect(blockSeed).to.not.be.null;
+    expect(blockSeed).to.not.be.undefined;
+    expect(typeof blockSeed).to.be.a("string");
+    expect(blockSeed.length).to.be.greaterThan(0);
+    expect(blockSeedHex).to.be.not.equal(
+      "0000000000000000000000000000000000000000000000000000000000000000"
+    );
+
+    // Log additional context
+    console.log("Block seed validation passed ✓");
+    console.log("===================");
+  });
+
+  it("Should get block seed out of range", async function () {
+    const status = await algodClient.status().do();
+    const currentRound = status["last-round"];
+    const blockSeed = await getBlockSeedCall({
+      appId,
+      round: Math.max(currentRound - 10_0000, 0),
+      debug: true,
+    });
+    expect(Buffer.from(blockSeed).toString("hex")).to.be.equal(
+      "0000000000000000000000000000000000000000000000000000000000000000"
+    );
+  });
+
+  it("Should spin and resolve", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    const spinR = await spin({
+      appId: appId,
+      betAmount: 1e6,
+      maxPaylineIndex: 19,
+      index: 0,
+      ...acc2,
+      debug: true,
+      output: "object",
+    });
+    console.log(spinR);
+    await touch({ appId: beaconAppId });
+    await new Promise((res) => setTimeout(res, 1000));
+    do {
+      await touch({ appId: beaconAppId }); // tick tock
+      const status = await algodClient.status().do();
+      const lastRound = status["last-round"];
+      await new Promise((res) => setTimeout(res, 1000));
+      if (lastRound > spinR.claimRound + 2) {
+        break;
+      }
+    } while (1);
+    const block = await algodClient.block(spinR.claimRound).do();
+    const getBlockSeedBetKeyGridTotalPayoutR =
+      await getBlockSeedBetKeyGridTotalPayout({
+        appId,
+        blockSeed: block.block.seed,
+        betKey: new Uint8Array(Buffer.from(spinR.betKey, "hex")),
+        betAmount: 1e6,
+        lines: 19,
+        ...acc2,
+        debug: true,
+      });
+    const [grid, payout] = getBlockSeedBetKeyGridTotalPayoutR;
+    console.log(displayGrid(Buffer.from(grid).toString("utf-8")));
+    console.log(
+      "getBlockSeedBetKeyGridTotalPayoutR",
+      getBlockSeedBetKeyGridTotalPayoutR
+    );
+    expect(true).to.be.true;
   });
 });

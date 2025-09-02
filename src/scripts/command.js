@@ -5,11 +5,13 @@ import { BankManagerClient, APP_SPEC as BankManagerAppSpec, } from "./clients/Ba
 import { SpinManagerClient } from "./clients/SpinManagerClient.js";
 import { ReelManagerClient } from "./clients/ReelManagerClient.js";
 import { YieldBearingTokenClient, APP_SPEC as YieldBearingTokenAppSpec, } from "./clients/YieldBearingTokenClient.js";
+import { APP_SPEC as MachineRegistryAppSpec, MachineRegistryClient, } from "./clients/MachineRegistryClient.js";
 import algosdk from "algosdk";
 import { CONTRACT } from "ulujs";
 import * as dotenv from "dotenv";
 import * as crypto from "crypto";
 import BigNumber from "bignumber.js";
+import fs from "fs";
 dotenv.config({ path: ".env" });
 //
 // TODO
@@ -275,7 +277,7 @@ const ALGO_INDEXER_PORT = 8980;
 const getCurrentNetworkConfig = () => {
     const globalOptions = globalThis.CURRENT_NETWORK_OPTIONS;
     if (!globalOptions) {
-        console.log("No global options found, using default devnet configuration");
+        //console.log("No global options found, using default devnet configuration");
         return {
             server: ALGO_SERVER,
             port: ALGO_PORT,
@@ -473,6 +475,10 @@ export const deploy = async (options) => {
             Client = YieldBearingTokenClient;
             break;
         }
+        case "MachineRegistry": {
+            Client = MachineRegistryClient;
+            break;
+        }
     }
     const clientParams = {
         resolveBy: "creatorAndName",
@@ -617,6 +623,7 @@ export const spin = async (options) => {
     const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
     const spin_costR = await ci.spin_cost();
     const spin_cost = Number(spin_costR.returnValue);
+    const output = options.output || "string";
     if (options.debug)
         console.log("spin_cost", spin_cost);
     //const spin_payline_costR = await ci.spin_payline_cost();
@@ -630,10 +637,17 @@ export const spin = async (options) => {
     const spinR = await ci.spin(options.betAmount, options.maxPaylineIndex, options.index);
     if (options.debug) {
         console.log({ spinR });
+        fs.writeSync(fs.openSync("spinR.json", "w"), JSON.stringify(spinR));
     }
     if (spinR.success) {
         if (!options.simulate) {
-            await signSendAndConfirm(spinR.txns, sk);
+            const res = await signSendAndConfirm(spinR.txns, sk);
+            if (output === "object") {
+                return {
+                    claimRound: res[0]["confirmed-round"] + 1,
+                    betKey: Buffer.from(spinR.returnValue).toString("hex"),
+                };
+            }
         }
         return Buffer.from(spinR.returnValue).toString("hex");
     }
@@ -667,7 +681,7 @@ program
         getBetGridR = await getBetGrid({
             ...options,
             appId: Number(options.appId),
-            betKey,
+            betKey: "",
         });
         if (getBetGridR.success) {
             displayGrid(getBetGridR.returnValue);
@@ -1585,4 +1599,118 @@ program
     else {
         console.log("Participation failed");
     }
+});
+export const getBlockSeedCall = async (options) => {
+    if (options.debug) {
+        console.log(options);
+    }
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setEnableRawBytes(true);
+    ci.setEnableParamsLastRoundMod(true);
+    const getBlockSeedR = await ci.get_block_seed(options.round);
+    if (options.debug) {
+        console.log(getBlockSeedR);
+    }
+    return getBlockSeedR.returnValue;
+};
+export const getBlockSeedBetKeyGridTotalPayout = async (options) => {
+    if (options.debug) {
+        console.log(options);
+    }
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+    ci.setFee(300000);
+    ci.setEnableRawBytes(true);
+    ci.setEnableParamsLastRoundMod(true);
+    const getBlockSeedBetKeyGridTotalPayoutR = await ci.get_block_seed_bet_key_grid_total_payout(options.blockSeed, options.betKey, options.betAmount, options.lines);
+    if (options.debug) {
+        console.log(getBlockSeedBetKeyGridTotalPayoutR);
+    }
+    return getBlockSeedBetKeyGridTotalPayoutR.returnValue;
+};
+export const registerMachine = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, MachineRegistryAppSpec, acc);
+    ci.setFee(2000);
+    const registerMachineCostR = await ci.register_machine_cost();
+    const registerMachineCost = registerMachineCostR.returnValue;
+    ci.setPaymentAmount(registerMachineCost);
+    const registerMachineR = await ci.register_machine(options.machineId);
+    if (options.debug) {
+        console.log(registerMachineR);
+    }
+    if (registerMachineR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(registerMachineR.txns, sk);
+        }
+    }
+    return registerMachineR;
+};
+program
+    .command("register-machine")
+    .description("Register a machine")
+    .option("-a, --appId <number>", "Specify the application ID")
+    .option("-m, --machineId <number>", "Specify the machine ID")
+    .option("-s, --addr <string>", "Specify sender")
+    .option("--debug", "Debug the register-machine", false)
+    .option("--simulate", "Simulate the register-machine", false)
+    .action(async (options) => {
+    const registerMachineR = await registerMachine({
+        ...options,
+        appId: Number(options.appId),
+        machineId: Number(options.machineId),
+    });
+    console.log(registerMachineR);
+});
+export const deleteMachine = async (options) => {
+    const addr = options.addr || addressses.deployer;
+    const sk = options.sk || sks.deployer;
+    const acc = { addr, sk };
+    const ci = makeContract(options.appId, MachineRegistryAppSpec, acc);
+    ci.setFee(2000);
+    const deleteMachineR = await ci.delete_machine(options.machineId);
+    if (options.debug) {
+        console.log(deleteMachineR);
+    }
+    if (deleteMachineR.success) {
+        if (!options.simulate) {
+            await signSendAndConfirm(deleteMachineR.txns, sk);
+        }
+    }
+    return deleteMachineR;
+};
+program
+    .command("delete-machine")
+    .description("Delete a machine")
+    .option("-a, --appId <number>", "Specify the application ID")
+    .option("-m, --machineId <number>", "Specify the machine ID")
+    .option("-s, --addr <string>", "Specify sender")
+    .option("--debug", "Debug the delete-machine", false)
+    .option("--simulate", "Simulate the delete-machine", false)
+    .action(async (options) => {
+    const deleteMachineR = await deleteMachine({
+        ...options,
+        appId: Number(options.appId),
+        machineId: Number(options.machineId),
+    });
+    console.log(deleteMachineR);
+});
+// common
+program
+    .command("fund")
+    .description("Fund an address")
+    .option("--account <string>", "Specify the address")
+    .option("--amount <number>", "Specify the amount")
+    .option("--debug", "Debug the fund", false)
+    .option("--simulate", "Simulate the fund", false)
+    .action(async (options) => {
+    const fundR = await fund(options.account, Number(options.amount));
+    console.log(fundR);
 });

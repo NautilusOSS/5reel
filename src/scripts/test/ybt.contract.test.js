@@ -689,7 +689,7 @@ describe("ybt: Yield Bearing Token Testing", function () {
     });
     await spin({
       appId: slotMachineAppId,
-      betAmount: 1e6 + 1, // 100 VOI locks up 100 * 10,000 VOI = 1M VOI
+      betAmount: 1e6, // 1 locks up 10k VOI which is 1% of 1M
       maxPaylineIndex: 19,
       index: 0,
       ...acc2,
@@ -715,7 +715,7 @@ describe("ybt: Yield Bearing Token Testing", function () {
     console.log("maxWithdrawableAmount", maxWithdrawableAmount);
     console.log("pctWithdrawable", pctWithdrawable);
     expect(depositR.success).to.be.true;
-    expect(pctWithdrawable).to.equal(BigInt(80)); // 80% of the balance is withdrawable
+    expect(pctWithdrawable).to.equal(BigInt(99)); // 99% of the balance is withdrawable
   });
 
   it("Should deposit with box payment on first deposit and when balance is zero", async function () {

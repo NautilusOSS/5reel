@@ -86,6 +86,14 @@ class BankBalances(arc4.Struct):
     balance_fuse: arc4.Bool
 
 
+# slot
+
+
+class GridPayout(arc4.Struct):
+    grid: Bytes15
+    payout: arc4.UInt64
+
+
 class SpinParams(arc4.Struct):
     max_extra_payment: arc4.UInt64
     max_payout_multiplier: arc4.UInt64
@@ -1126,7 +1134,187 @@ class SpinManager(SpinManagerInterface, BankManager, Ownable):
         return bet_key
 
 
-class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
+class Machine(arc4.Struct):
+    machine_id: arc4.UInt64
+    machine_hash: Bytes32
+    machine_balance: arc4.UInt64
+    updated_at: arc4.UInt64
+
+
+class MachineRegistered(arc4.Struct):
+    machine_id: arc4.UInt64
+
+
+class MachineDeleted(arc4.Struct):
+    machine_id: arc4.UInt64
+
+
+class MachineSynced(arc4.Struct):
+    machine_id: arc4.UInt64
+
+
+class MachineRegistryInterface(ARC4Contract):
+    @arc4.abimethod
+    def register_machine(self, machine_id: arc4.UInt64) -> None:
+        pass
+
+    @arc4.abimethod
+    def delete_machine(self, machine_id: arc4.UInt64) -> None:
+        pass
+
+    @arc4.abimethod
+    def sync_machine(self, machine_id: arc4.UInt64) -> None:
+        pass
+
+
+class MachineRegistry(MachineRegistryInterface, Ownable, Upgradeable):
+
+    def __init__(self) -> None:
+        # ownable state
+        self.owner = Global.creator_address
+        # upgradeable state
+        self.upgrader = Global.creator_address
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(0)
+        self.updatable = bool(1)
+        # machine registry state
+        self.machine = BoxMap(UInt64, Machine)
+        self.machine_count = UInt64(0)
+        self.machine_total_amount = UInt64(0)
+
+    @arc4.abimethod
+    def post_update(self) -> None:
+        """
+        Post upgrade
+        """
+        assert Txn.sender == self.upgrader, "must be upgrader"
+        self.contract_version = UInt64(0)
+        self.deployment_version = UInt64(0)
+
+    @arc4.abimethod
+    def bootstrap(self) -> None:
+        """
+        Bootstrap the machine registry
+        """
+        self._only_owner()
+        self._bootstrap()
+
+    @subroutine
+    def _bootstrap(self) -> None:
+        pass
+
+    @arc4.abimethod(readonly=True)
+    def bootstrap_cost(self) -> arc4.UInt64:
+        return arc4.UInt64(self._bootstrap_cost())
+
+    @subroutine
+    def _bootstrap_cost(self) -> UInt64:
+        return Global.min_balance
+
+    @arc4.abimethod
+    def register_machine(self, machine_id: arc4.UInt64) -> None:
+        """
+        Register a machine
+        """
+        self._only_owner()
+        self._register_machine(machine_id.native)
+
+    @subroutine
+    def _register_machine(self, machine_id: UInt64) -> None:
+        assert machine_id not in self.machine, "machine already registered"
+        app = Application(machine_id)
+        acc = app.address
+        available_balance = acc.balance - acc.min_balance
+        machine_hash, txn0 = arc4.abi_call(SlotMachine.get_machine_hash, app_id=app)
+        self.machine[machine_id] = Machine(
+            machine_id=arc4.UInt64(machine_id),
+            machine_hash=machine_hash.copy(),
+            machine_balance=arc4.UInt64(available_balance),
+            updated_at=arc4.UInt64(Global.latest_timestamp),
+        )
+        self.machine_count = self.machine_count + UInt64(1)
+        self.machine_total_amount = self.machine_total_amount + available_balance
+        arc4.emit(MachineRegistered(machine_id=arc4.UInt64(machine_id)))
+
+    @arc4.abimethod(readonly=True)
+    def register_machine_cost(self) -> arc4.UInt64:
+        return arc4.UInt64(self._register_machine_cost())
+
+    @subroutine
+    def _register_machine_cost(self) -> UInt64:
+        return UInt64(30900)
+
+    @arc4.abimethod
+    def delete_machine(self, machine_id: arc4.UInt64) -> None:
+        """
+        Delete a machine
+        """
+        self._only_owner()
+        self._delete_machine(machine_id.native)
+
+    @subroutine
+    def _delete_machine(self, machine_id: UInt64) -> None:
+        assert machine_id in self.machine, "machine not registered"
+        machine = self.machine[machine_id]
+        del self.machine[machine_id]
+        assert self.machine_count > UInt64(0), "machine count is 0"
+        self.machine_count = self.machine_count - UInt64(1)
+        self.machine_total_amount = (
+            self.machine_total_amount - machine.machine_balance.native
+        )
+        arc4.emit(MachineDeleted(machine_id=arc4.UInt64(machine_id)))
+
+    @arc4.abimethod
+    def sync_machine(self, machine_id: arc4.UInt64) -> None:
+        """
+        Sync a machine
+        """
+        self._sync_machine(machine_id.native)
+
+    @subroutine
+    def _sync_machine(self, machine_id: UInt64) -> None:
+        assert machine_id in self.machine, "machine not registered"
+        app = Application(machine_id)
+        acc = app.address
+        available_balance = acc.balance - acc.min_balance
+        machine_hash, txn = arc4.abi_call(SlotMachine.get_machine_hash, app_id=app)
+        machine = self._get_machine(machine_id)
+        old_balance = machine.machine_balance
+        machine.machine_hash = machine_hash.copy()
+        machine.machine_balance = arc4.UInt64(available_balance)
+        machine.updated_at = arc4.UInt64(Global.latest_timestamp)
+        self.machine[machine_id] = machine.copy()
+        self.machine_total_amount = (
+            self.machine_total_amount - old_balance.native + available_balance
+        )
+        arc4.emit(MachineSynced(machine_id=arc4.UInt64(machine_id)))
+
+    @arc4.abimethod(readonly=True)
+    def get_machine(self, machine_id: arc4.UInt64) -> Machine:
+        return self._get_machine(machine_id.native)
+
+    @subroutine
+    def _get_machine(self, machine_id: UInt64) -> Machine:
+        return self.machine[machine_id].copy()
+
+    @arc4.abimethod(readonly=True)
+    def get_machine_count(self) -> arc4.UInt64:
+        return arc4.UInt64(self._get_machine_count())
+
+    @subroutine
+    def _get_machine_count(self) -> UInt64:
+        return self.machine_count
+
+    @arc4.abimethod(readonly=True)
+    def get_machine_total_amount(self) -> arc4.UInt64:
+        return arc4.UInt64(self._get_machine_total_amount())
+
+    @subroutine
+    def _get_machine_total_amount(self) -> UInt64:
+        return self.machine_total_amount
+
+
+class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable, Stakeable):
     """
     A simple reel slot machine smart contract
 
@@ -1142,10 +1330,14 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
     def __init__(self) -> None:
         # upgradeable state
         self.upgrader = Global.creator_address
-        self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(10)
+        self.contract_version = UInt64(1)
+        self.deployment_version = UInt64(0)
         self.updatable = bool(1)
-        # TODO add missing ownable state
+        # ownable state
+        self.owner = Global.creator_address
+        # stakeable state
+        self.delegate = Account()
+        self.stakeable = bool(1)
 
     @arc4.abimethod
     def post_update(self) -> None:
@@ -1153,8 +1345,22 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         Post upgrade
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
-        self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(10)
+        self.contract_version = UInt64(1)
+        self.deployment_version = UInt64(0)
+
+    @arc4.abimethod(readonly=True)
+    def get_machine_hash(self) -> Bytes32:
+        """
+        Get the hash of the machine
+        """
+        return Bytes32.from_bytes(self._get_machine_hash())
+
+    @subroutine
+    def _get_machine_hash(self) -> Bytes:
+        """
+        Get the hash of the machine
+        """
+        return op.sha256(self._get_reels())
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -1162,15 +1368,15 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         assert payment >= self._bootstrap_cost(), "insuffienct payment for bootstrap"
         self._bootstrap()
 
-    @arc4.abimethod(readonly=True)
-    def bootstrap_cost(self) -> arc4.UInt64:
-        return arc4.UInt64(self._bootstrap_cost())
-
     # override
     @subroutine
     def _bootstrap(self) -> None:
         self._bank_manager_bootstrap()
         self._ownable_bootstrap()
+
+    @arc4.abimethod(readonly=True)
+    def bootstrap_cost(self) -> arc4.UInt64:
+        return arc4.UInt64(self._bootstrap_cost())
 
     # override
     @subroutine
@@ -1232,25 +1438,13 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             arc4.UInt64(top_5),
         )
 
-    # TODO move to TestingSlotMachine
-    # @arc4.abimethod(readonly=True)
-    # def get_seed_bet_grid(self, seed: Bytes32, bet_key: Bytes56) -> Bytes15:
-    #     """
-    #     Returns grid from seed and bet grid
-    #     """
-    #     ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
-    #     combined = seed.bytes + bet_key.bytes
-    #     hashed = op.sha256(combined)
-    #     return Bytes15.from_bytes(self._get_grid(hashed))
-
-    # TODO move to TestingSlotMachine
-    # @arc4.abimethod(readonly=True)
-    # def get_grid(self, seed: Bytes32) -> Bytes15:
-    #     """
-    #     Get the grid of the slot machine.
-    #     """
-    #     ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
-    #     return Bytes15.from_bytes(self._get_grid(seed.bytes))
+    @arc4.abimethod(readonly=True)
+    def get_grid(self, seed: Bytes32) -> Bytes15:
+        """
+        Get the grid of the slot machine.
+        """
+        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+        return Bytes15.from_bytes(self._get_grid(seed.bytes))
 
     @subroutine
     def _get_grid(self, seed: Bytes) -> Bytes:
@@ -1266,14 +1460,37 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             + self._get_reel_window(UInt64(4), reel_tops[4].native)
         )
 
-    # TODO move to TestingSlotMachine
-    # @arc4.abimethod(readonly=True)
-    # def get_grid_payline_symbols(
-    #     self, grid: Bytes15, payline_index: arc4.UInt64
-    # ) -> Bytes5:
-    #     return Bytes5.from_bytes(
-    #         self._get_grid_payline_symbols(grid.bytes, payline_index.native)
-    #     )
+    @arc4.abimethod
+    def get_bet_grid(self, bet_key: Bytes56) -> Bytes15:
+        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+        return Bytes15.from_bytes(self._get_bet_grid(bet_key.bytes))
+
+    @subroutine
+    def _get_bet_grid(self, bet_key: Bytes) -> Bytes:
+        assert bet_key in self.bet, "bet not found"
+        bet = self.bet[bet_key].copy()
+        combined = self._get_block_seed(bet.claim_round.native) + bet_key
+        hashed = op.sha256(combined)
+        grid = self._get_grid(hashed)
+        return grid
+
+    @arc4.abimethod(readonly=True)
+    def get_seed_bet_grid(self, seed: Bytes32, bet_key: Bytes56) -> Bytes15:
+        """
+        Returns grid from seed and bet grid
+        """
+        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
+        combined = seed.bytes + bet_key.bytes
+        hashed = op.sha256(combined)
+        return Bytes15.from_bytes(self._get_grid(hashed))
+
+    @arc4.abimethod(readonly=True)
+    def get_grid_payline_symbols(
+        self, grid: Bytes15, payline_index: arc4.UInt64
+    ) -> Bytes5:
+        return Bytes5.from_bytes(
+            self._get_grid_payline_symbols(grid.bytes, payline_index.native)
+        )
 
     @subroutine
     def _get_grid_payline_symbols(self, grid: Bytes, payline_index: UInt64) -> Bytes:
@@ -1292,10 +1509,9 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
     # --- Paylines ---
 
-    # TODO move to TestingSlotMachine
-    # @arc4.abimethod(readonly=True)
-    # def get_payline_count(self) -> arc4.UInt64:
-    #     return arc4.UInt64(self._get_payline_count())
+    @arc4.abimethod(readonly=True)
+    def get_payline_count(self) -> arc4.UInt64:
+        return arc4.UInt64(self._get_payline_count())
 
     @subroutine
     def _get_payline_count(self) -> UInt64:
@@ -1555,20 +1771,6 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
             symbol=arc4.Byte.from_bytes(highest_symbol),
         )
 
-    @arc4.abimethod
-    def get_bet_grid(self, bet_key: Bytes56) -> Bytes15:
-        ensure_budget(1000, OpUpFeeSource.GroupCredit)  # REM may use 1070 opcode budget
-        return Bytes15.from_bytes(self._get_bet_grid(bet_key.bytes))
-
-    @subroutine
-    def _get_bet_grid(self, bet_key: Bytes) -> Bytes:
-        assert bet_key in self.bet, "bet not found"
-        bet = self.bet[bet_key].copy()
-        combined = self._get_block_seed(bet.claim_round.native) + bet_key
-        hashed = op.sha256(combined)
-        grid = self._get_grid(hashed)
-        return grid
-
     # override
     @arc4.abimethod
     def claim(self, bet_key: Bytes56) -> arc4.UInt64:
@@ -1633,21 +1835,27 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         # 2 determine number of lines
         lines = bet.max_payline_index.native + UInt64(1)
         # 3 decode the entire grid
-        combined = self._get_block_seed(bet.claim_round.native) + bet_key
-        hashed = op.sha256(combined)
-        grid = self._get_grid(hashed)
+        # combined = self._get_block_seed(bet.claim_round.native) + bet_key
+        # hashed = op.sha256(combined)
+        # grid = self._get_grid(hashed)
         # 4 loop through the number of lines and evaluate each one
-        total_payout = UInt64(0)
-        for line_index in urange(lines):
-            payline_match = self._match_payline(grid, line_index)
-            # 5 calculate payment out
-            payout = arc4.UInt64(
-                bet.amount.native * self._get_payout_multiplier(payline_match)
-            )
-            # 6 route payments
-            if payout.native > 0:
-                total_payout += payout.native
-                # itxn.Payment(receiver=bet.who.native, amount=payout.native).submit()
+        grid_payout = self._get_block_seed_bet_key_grid_total_payout(
+            self._get_block_seed(bet.claim_round.native),
+            bet_key,
+            bet.amount.native,
+            lines,
+        )
+        total_payout = grid_payout.payout.native
+        # total_payout = UInt64(0)
+        # for line_index in urange(lines):
+        #     payline_match = self._match_payline(grid, line_index)
+        #     # 5 calculate payment out
+        #     payout = arc4.UInt64(
+        #         bet.amount.native * self._get_payout_multiplier(payline_match)
+        #     )
+        #     # 6 route payments
+        #     if payout.native > 0:
+        #         total_payout += payout.native
         # 7 close box
         del self.bet[bet_key]
         # d cond payout
@@ -1674,18 +1882,62 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         )
         return total_payout
 
+    @arc4.abimethod(readonly=True)
+    def get_block_seed_bet_key_grid_total_payout(
+        self,
+        seed: Bytes32,
+        bet_key: Bytes56,
+        bet_amount: arc4.UInt64,
+        lines: arc4.UInt64,
+    ) -> GridPayout:
+        ensure_budget(20000, OpUpFeeSource.GroupCredit)  # local program cost was 9787
+        return self._get_block_seed_bet_key_grid_total_payout(
+            seed.bytes, bet_key.bytes, bet_amount.native, lines.native
+        )
+
+    @subroutine
+    def _get_block_seed_bet_key_grid_total_payout(
+        self, seed: Bytes, bet_key: Bytes, bet_amount: UInt64, lines: UInt64
+    ) -> GridPayout:
+        combined = seed + bet_key
+        hashed = op.sha256(combined)
+        grid = self._get_grid(hashed)
+        # 4 loop through the number of lines and evaluate each one
+        total_payout = UInt64(0)
+        for line_index in urange(lines):
+            payline_match = self._match_payline(grid, line_index)
+            # 5 calculate payment out
+            payout = bet_amount * self._get_payout_multiplier(payline_match)
+            # 6 route payments
+            if payout > 0:
+                total_payout += payout
+        return GridPayout(
+            grid=Bytes15.from_bytes(grid),
+            payout=arc4.UInt64(total_payout),
+        )
+
+    @arc4.abimethod(readonly=True)
+    def get_block_seed(self, round: arc4.UInt64) -> Bytes32:
+        if Global.round < round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
+            return Bytes32.from_bytes(self._get_block_seed(round.native))
+        else:
+            return Bytes32.from_bytes(
+                Bytes.from_hex(
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                )
+            )
+
     @subroutine
     def _get_block_seed(self, round: UInt64) -> Bytes:
         return op.Block.blk_seed(round)[-32:]
 
-    # TODO move to TestingSlotMachine
-    # @arc4.abimethod(readonly=True)
-    # def get_payout_multiplier(
-    #     self, symbol: arc4.Byte, count: arc4.UInt64
-    # ) -> arc4.UInt64:
-    #     return arc4.UInt64(
-    #         self._get_payout_multiplier(PaylineMatch(count=count, symbol=symbol))
-    #     )
+    @arc4.abimethod(readonly=True)
+    def get_payout_multiplier(
+        self, symbol: arc4.Byte, count: arc4.UInt64
+    ) -> arc4.UInt64:
+        return arc4.UInt64(
+            self._get_payout_multiplier(PaylineMatch(count=count, symbol=symbol))
+        )
 
     @subroutine
     def _get_payout_multiplier(self, pm: PaylineMatch) -> UInt64:
@@ -1773,7 +2025,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
         ###########################################
         # TODO use owner or other auth
         # TODO add auth
-        #assert Txn.sender == self.upgrader, "must be authorized"
+        # assert Txn.sender == self.upgrader, "must be authorized"
         ###########################################
         key_reg_fee = Global.min_txn_fee
         # require payment of min fee to prevent draining
@@ -1810,7 +2062,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable):
 
 
 # implements BootstrappedInterface
-class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
+class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
     """
     A simple yield bearing token
     """
@@ -1821,14 +2073,13 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable, Stakeable):
         self.symbol = String()
         self.decimals = UInt64()
         self.totalSupply = BigUInt()
+        # ownable state
+        self.owner = Global.creator_address
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
         self.deployment_version = UInt64(5)
         self.updatable = bool(1)
-        # stakeable state
-        self.delegate = Account()
-        self.stakeable = bool(1)
         # yield bearing state
         self.bootstrap_active = bool()
         self.yield_bearing_source = UInt64()
