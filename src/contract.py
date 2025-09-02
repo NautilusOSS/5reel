@@ -1255,7 +1255,7 @@ class MachineRegistry(MachineRegistryInterface, Ownable, Upgradeable):
     @subroutine
     def _delete_machine(self, machine_id: UInt64) -> None:
         assert machine_id in self.machine, "machine not registered"
-        machine = self.machine[machine_id]
+        machine = self._get_machine(machine_id)
         del self.machine[machine_id]
         assert self.machine_count > UInt64(0), "machine count is 0"
         self.machine_count = self.machine_count - UInt64(1)
