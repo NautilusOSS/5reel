@@ -2521,3 +2521,37 @@ program
     const fundR = await fund(options.account, Number(options.amount));
     console.log(fundR);
   });
+
+interface GetBlockSeedBetKeyGridTotalPayoutDetailsOptions {
+  appId: number;
+  blockSeed: string;
+  betKey: string;
+  betAmount: number;
+  lines: number;
+  addr: string;
+  sk: any;
+  debug?: boolean;
+}
+
+export const getBlockSeedBetKeyGridTotalPayoutDetails = async (
+  options: GetBlockSeedBetKeyGridTotalPayoutDetailsOptions
+) => {
+  const addr = options.addr || addressses.deployer;
+  const sk = options.sk || sks.deployer;
+  const acc = { addr, sk };
+  const ci = makeContract(options.appId, SlotMachineAppSpec, acc);
+  ci.setFee(300000);
+  ci.setEnableRawBytes(true);
+  ci.setEnableParamsLastRoundMod(true);
+  const getBlockSeedBetKeyGridTotalPayoutDetailsR =
+    await ci.get_block_seed_bet_key_grid_total_payout_details(
+      options.blockSeed,
+      options.betKey,
+      options.betAmount,
+      options.lines
+    );
+  if (options.debug) {
+    console.log(getBlockSeedBetKeyGridTotalPayoutDetailsR);
+  }
+  return getBlockSeedBetKeyGridTotalPayoutDetailsR.returnValue;
+};

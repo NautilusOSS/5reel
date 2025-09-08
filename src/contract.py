@@ -48,9 +48,26 @@ Bytes5: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[5]]
 Bytes3: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[3]]
 Bytes1: typing.TypeAlias = arc4.StaticArray[arc4.Byte, typing.Literal[1]]
 
+PayoutDetails: typing.TypeAlias = arc4.StaticArray[arc4.UInt64, typing.Literal[20]]
+
 BOX_COST_BALANCE = 28500
 MAX_CLAIM_ROUND_DELTA = 1000
 SCALING_FACTOR = 10**12
+
+# ybt
+
+
+class YBTDeposit(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+
+
+class YBTWithdraw(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+
 
 # participation
 
@@ -92,6 +109,11 @@ class BankBalances(arc4.Struct):
 class GridPayout(arc4.Struct):
     grid: Bytes15
     payout: arc4.UInt64
+
+
+class GridPayoutDetails(arc4.Struct):
+    grid: Bytes15
+    payout: PayoutDetails
 
 
 class SpinParams(arc4.Struct):
@@ -1331,7 +1353,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable, Stakeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(1)
-        self.deployment_version = UInt64(0)
+        self.deployment_version = UInt64(1)
         self.updatable = bool(1)
         # ownable state
         self.owner = Global.creator_address
@@ -1346,7 +1368,7 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable, Stakeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(1)
-        self.deployment_version = UInt64(0)
+        self.deployment_version = UInt64(1)
 
     @arc4.abimethod(readonly=True)
     def get_machine_hash(self) -> Bytes32:
@@ -1917,6 +1939,41 @@ class SlotMachine(SpinManager, ReelManager, Ownable, Upgradeable, Stakeable):
         )
 
     @arc4.abimethod(readonly=True)
+    def get_block_seed_bet_key_grid_total_payout_details(
+        self,
+        seed: Bytes32,
+        bet_key: Bytes56,
+        bet_amount: arc4.UInt64,
+        lines: arc4.UInt64,
+    ) -> GridPayoutDetails:
+        ensure_budget(20000, OpUpFeeSource.GroupCredit)  # local program cost was 9787
+        return self._get_block_seed_bet_key_grid_total_payout_details(
+            seed.bytes, bet_key.bytes, bet_amount.native, lines.native
+        )
+
+    @subroutine
+    def _get_block_seed_bet_key_grid_total_payout_details(
+        self, seed: Bytes, bet_key: Bytes, bet_amount: UInt64, lines: UInt64
+    ) -> GridPayoutDetails:
+        combined = seed + bet_key
+        hashed = op.sha256(combined)
+        grid = self._get_grid(hashed)
+        # 4 loop through the number of lines and evaluate each one
+        payout_details = PayoutDetails.from_bytes(b"\x00" * 8 * 20)
+        total_payout = UInt64(0)
+        for line_index in urange(lines):
+            payline_match = self._match_payline(grid, line_index)
+            # 5 calculate payment out
+            payout = bet_amount * self._get_payout_multiplier(payline_match)
+            # 6 route payments
+            if payout > 0:
+                total_payout += payout
+                payout_details[line_index] = arc4.UInt64(payout)
+        return GridPayoutDetails(
+            grid=Bytes15.from_bytes(grid), payout=payout_details.copy()
+        )
+
+    @arc4.abimethod(readonly=True)
     def get_block_seed(self, round: arc4.UInt64) -> Bytes32:
         if Global.round < round.native + UInt64(MAX_CLAIM_ROUND_DELTA):
             return Bytes32.from_bytes(self._get_block_seed(round.native))
@@ -2078,7 +2135,7 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
         # upgradeable state
         self.upgrader = Global.creator_address
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(5)
+        self.deployment_version = UInt64(6)
         self.updatable = bool(1)
         # yield bearing state
         self.bootstrap_active = bool()
@@ -2092,7 +2149,7 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
         """
         assert Txn.sender == self.upgrader, "must be upgrader"
         self.contract_version = UInt64(0)
-        self.deployment_version = UInt64(5)
+        self.deployment_version = UInt64(6)
 
     @arc4.abimethod
     def bootstrap(self) -> None:
@@ -2285,7 +2342,17 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
         )
 
         # Mint shares based on PRIOR balance (not inflated balance)
-        return arc4.UInt256(self._mint(BigUInt(deposit_amount), total_assets))
+        prior_shares = self._balanceOf(Txn.sender)
+        shares = self._mint(BigUInt(deposit_amount), total_assets)
+        new_shares = shares + prior_shares
+        arc4.emit(
+            YBTDeposit(
+                amount=arc4.UInt64(deposit_amount),
+                shares=arc4.UInt256(shares),
+                new_shares=arc4.UInt256(new_shares),
+            )
+        )
+        return arc4.UInt256(shares)
 
     @arc4.abimethod
     def deposit_cost(self) -> arc4.UInt64:
@@ -2405,7 +2472,15 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
         assert max_withdrawable >= amount.native, "insufficient balance"
 
         # burn shares for underlying assets
-        return arc4.UInt64(self._burn(amount.native))
+        shares_to_burn = amount.native
+        new_shares = self._balanceOf(Txn.sender) - shares_to_burn
+        withdraw_amount = self._burn(amount.native)
+        arc4.emit(
+            YBTWithdraw(
+                amount=arc4.UInt64(amount.native),
+                shares=arc4.UInt256(shares_to_burn),
+                new_shares=arc4.UInt256(new_shares),
+        return withdraw_amount
 
     @subroutine
     def _burn(self, withdraw_amount: BigUInt) -> UInt64:

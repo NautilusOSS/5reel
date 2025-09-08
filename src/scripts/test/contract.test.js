@@ -56,6 +56,7 @@ import {
   claim,
   getBlockSeedCall,
   getBlockSeedBetKeyGridTotalPayout,
+  getBlockSeedBetKeyGridTotalPayoutDetails,
   //getPaylineCount,
 } from "../command.js";
 
@@ -91,12 +92,14 @@ describe("slotmac: Slot Machine Payout Testing", function () {
   let blockSeeds = new Set();
 
   before(async function () {
+    const acc = await getAccount();
+    await fund(acc.addr, 1000e6);
     const { appId: id0 } = await deploy({
       type: "Beacon",
       name: `Beacon`,
-      addr: addressses[0],
-      sk: sks[0],
+      ...acc,
     });
+    console.log("beaconAppId", id0);
     beaconAppId = id0;
     expect(beaconAppId).to.be.greaterThan(0);
     const status = await algodClient.status().do();
@@ -1133,6 +1136,64 @@ describe("slotmac: Slot Machine Payout Testing", function () {
       "getBlockSeedBetKeyGridTotalPayoutR",
       getBlockSeedBetKeyGridTotalPayoutR
     );
+    expect(true).to.be.true;
+  });
+
+  it("Should spin and resolve with payout details", async function () {
+    const acc2 = await getAccount();
+    await fund(acc2.addr, 1000e6);
+    const spinR = await spin({
+      appId: appId,
+      betAmount: 1e6,
+      maxPaylineIndex: 19,
+      index: 0,
+      ...acc2,
+      debug: true,
+      output: "object",
+    });
+    console.log(spinR);
+    await touch({ appId: beaconAppId });
+    await new Promise((res) => setTimeout(res, 1000));
+    do {
+      await touch({ appId: beaconAppId }); // tick tock
+      const status = await algodClient.status().do();
+      const lastRound = status["last-round"];
+      await new Promise((res) => setTimeout(res, 1000));
+      if (lastRound > spinR.claimRound + 2) {
+        break;
+      }
+    } while (1);
+    const block = await algodClient.block(spinR.claimRound).do();
+    const getBlockSeedBetKeyGridTotalPayoutR =
+      await getBlockSeedBetKeyGridTotalPayout({
+        appId,
+        blockSeed: block.block.seed,
+        betKey: new Uint8Array(Buffer.from(spinR.betKey, "hex")),
+        betAmount: 1e6,
+        lines: 19,
+        ...acc2,
+        debug: true,
+      });
+    const getBlockSeedBetKeyGridTotalPayoutDetailsR =
+      await getBlockSeedBetKeyGridTotalPayoutDetails({
+        appId,
+        blockSeed: block.block.seed,
+        betKey: new Uint8Array(Buffer.from(spinR.betKey, "hex")),
+        betAmount: 1e6,
+        lines: 19,
+        ...acc2,
+        debug: true,
+      });
+    console.log({
+      getBlockSeedBetKeyGridTotalPayoutR,
+      getBlockSeedBetKeyGridTotalPayoutDetailsR,
+    });
+    // const [grid, payout] = getBlockSeedBetKeyGridTotalPayoutR;
+    // console.log(displayGrid(Buffer.from(grid).toString("utf-8")));
+    // console.log(
+    //   "getBlockSeedBetKeyGridTotalPayoutR",
+    //   getBlockSeedBetKeyGridTotalPayoutR
+    // );
     expect(true).to.be.true;
   });
 });
