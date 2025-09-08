@@ -8,15 +8,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Ongoing interface architecture improvements
-- Continuous testing enhancements and optimizations
-- Performance monitoring and optimization efforts
+- Ongoing documentation improvements and updates
+- Continuous system enhancements and optimizations
 
 ### Changed
-- Ongoing code cleanup and refactoring
-- Continuous testing improvements
-- Interface-based contract design refinements
-- Performance optimizations in critical contract functions
+- Enhanced documentation structure and clarity
+- Ongoing system improvements and refinements
+
+## [1.1] - 2025-09-07
+
+### Added
+- **Detailed Payout Analysis**: Added `GridPayoutDetails` struct and `get_block_seed_bet_key_grid_total_payout_details` method for granular payout information per payline
+- **Enhanced YBT Deposit Events**: Added `YBTDeposit` and `YBTWithdraw` event structs for better deposit/withdrawal tracking with share calculations
+- **Improved Client Functions**: Enhanced JavaScript and TypeScript client functions for detailed payout analysis
+- **Comprehensive Payout Testing**: Enhanced test suite with payout details testing functionality
+
+### Changed
+- **Contract Versioning**: Updated deployment versions - SlotMachine (0→1), YieldBearingToken (5→6)
+- **YBT Deposit Method**: Fixed YBT deposit method to emit proper events with accurate share calculations
+- **Event Tracking**: Improved yield-bearing token deposit experience with better event emission
+
+### Technical Details
+- **Contract Updates**: 87 lines added to contract.py with enhanced payout analysis capabilities
+- **Client Enhancements**: Added 14 lines to command.js and 34 lines to command.ts for payout details support
+- **Testing Improvements**: Added 65 lines to contract.test.js for comprehensive payout details testing
+- **Event System**: Enhanced YBT events provide granular tracking of deposit/withdrawal operations with share information
+
+## [1.0] - 2025-09-02
+
+### Added
+- **MachineRegistry Contract**: New contract for centralized management of multiple slot machines with registration, deletion, and sync functionality
+- **GridPayout Structure**: Enhanced payout tracking with new `GridPayout` struct for better data organization
+- **Comprehensive Spin and Claim Guide**: Added extensive 19.8KB documentation guide covering the complete betting workflow
+- **Block Seed Testing**: Added functionality for testing block seed generation and validation
+- **Machine Registry Support**: Enhanced client scripts with comprehensive machine registry management capabilities
+
+### Changed
+- **Contract Architecture**: Major enhancement to support distributed gaming network with centralized machine management
+- **Documentation Structure**: Updated documentation index to reference new comprehensive guides
+- **Client Generation**: Improved client generation script for better development workflow
+- **Contract Versioning**: Updated SlotMachine contract version (0→1, deployment 10→0), added MachineRegistry (version 0, deployment 0)
+
+### Technical Details
+- **New Documentation**: Added 742 lines to spin-and-claim-guide.md with complete betting workflow documentation
+- **Contract Expansion**: Added 415+ lines to contract.py with MachineRegistry implementation and enhanced features
+- **Client Enhancements**: Added 134 lines to command.js and 198 lines to command.ts for machine registry support
+- **Testing Infrastructure**: Added 114 lines to contract.test.js and 163 lines to registry tests
+- **Machine Registry**: Enables registration, tracking, balance synchronization, and validation of multiple slot machines
+
+### New Events
+- **MachineRegistered**: Emitted when a machine is registered in the registry
+- **MachineDeleted**: Emitted when a machine is removed from the registry
+- **MachineSynced**: Emitted when a machine is synchronized
 
 ## [0.10] - 2025-08-28
 
@@ -255,6 +298,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **1.1** (2025-09-07): Detailed payout analysis, enhanced YBT deposit events, improved client functions, comprehensive payout testing
+- **1.0** (2025-09-02): MachineRegistry contract, GridPayout structure, comprehensive spin and claim guide, block seed testing, machine registry support
 - **0.10** (2025-08-28): Enhanced testing coverage, participation testing improvements, error handling enhancements, code optimization and performance improvements
 - **0.9** (2025-08-27): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements
 - **0.8** (2025-08-27): Balance update events, enhanced event system, data structures documentation, claim functionality testing, improved documentation structure
@@ -268,6 +313,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-Release** (2025-01-20 to 2025-04-21): Development and setup phase
 
 ## Key Features by Version
+### v1.1 - Detailed Analytics & Enhanced Events
+- Detailed payout analysis with GridPayoutDetails struct for granular payline information
+- Enhanced YBT deposit events with YBTDeposit and YBTWithdraw event structs
+- Improved client functions for comprehensive payout analysis in JS/TS
+- Enhanced test suite with payout details testing functionality
+- Fixed YBT deposit method to emit proper events with accurate share calculations
+
+### v1.0 - Machine Registry & Comprehensive Documentation
+- MachineRegistry contract for centralized management of multiple slot machines
+- GridPayout structure for enhanced payout tracking and data organization
+- Comprehensive 19.8KB spin and claim guide covering complete betting workflow
+- Block seed testing functionality for validation and testing
+- Enhanced client scripts with machine registry management capabilities
+- Machine registration, deletion, and synchronization events
+
 
 ### v0.10 - Enhanced Testing & Validation
 - Enhanced testing coverage across all contract components
@@ -357,5 +417,7 @@ The 5reel project has evolved from a basic smart contract template to a comprehe
 9. **Enhanced Transparency** (v0.8): Balance update events, comprehensive event system, data structures documentation, claim functionality testing, improved documentation structure
 10. **Performance & Architecture** (v0.9): Interface-based architecture improvements, OpCode budget optimization, enhanced contract structure, performance improvements, refined interface patterns
 11. **Enhanced Testing & Validation** (v0.10): Enhanced testing coverage, participation testing improvements, error handling enhancements, code optimization and performance improvements
+12. **Machine Registry & Documentation** (v1.0): MachineRegistry contract for distributed gaming network, comprehensive spin and claim guide, enhanced client scripts, machine management capabilities
+13. **Detailed Analytics & Enhanced Events** (v1.1): Detailed payout analysis, enhanced YBT deposit events, improved client functions, comprehensive payout testing
 
 Each version builds upon the previous, creating a robust and well-tested gaming platform on the Algorand blockchain.

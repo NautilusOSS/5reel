@@ -13,6 +13,8 @@ The system is built with a modular architecture consisting of several key compon
 - **SpinManager**: Handles betting, spinning, and payout logic
 - **BankManager**: Manages contract balances and financial operations
 - **YieldBearingToken**: ERC-20 compatible token with yield generation
+- **MachineRegistry**: Registry for managing multiple slot machines
+- **Beacon**: Simple beacon contract for testing and production
 - **Base Contracts**: Ownable, Bootstrapped, and Touchable interfaces
 
 ## Core Contracts
@@ -138,6 +140,62 @@ Updates the contract version after an upgrade.
 
 **Note**: This method is called after contract upgrades to reset version numbers
 
+##### `get_machine_hash() -> Bytes32`
+Returns the hash of the machine for identification purposes.
+
+**Returns**: 32-byte hash of the machine's reel configuration
+
+**Note**: This method is used by the MachineRegistry to track and validate slot machines
+
+##### `get_block_seed(round: UInt64) -> Bytes32`
+Gets the block seed for a specific round, used for deterministic outcome generation.
+
+**Parameters**:
+- `round`: The round number to get the seed for
+
+**Returns**: 32-byte block seed, or zero bytes if the round is too old
+
+**Note**: Returns zero bytes if the round is older than MAX_CLAIM_ROUND_DELTA (1000 rounds)
+
+##### `get_block_seed_bet_key_grid_total_payout(seed: Bytes32, bet_key: Bytes56, bet_amount: UInt64, lines: UInt64) -> GridPayout`
+Calculates the total payout for a grid generated from a block seed and bet key.
+
+**Parameters**:
+- `seed`: 32-byte block seed
+- `bet_key`: 56-byte bet identifier
+- `bet_amount`: Bet amount per line
+- `lines`: Number of paylines to check
+
+**Returns**: `GridPayout` struct containing the grid and total payout amount
+
+**Cost**: 20,000 opcodes (uses OpUp)
+
+##### `get_block_seed_bet_key_grid_total_payout_details(seed: Bytes32, bet_key: Bytes56, bet_amount: UInt64, lines: UInt64) -> GridPayoutDetails`
+Calculates detailed payout information for each payline in a grid.
+
+**Parameters**:
+- `seed`: 32-byte block seed
+- `bet_key`: 56-byte bet identifier
+- `bet_amount`: Bet amount per line
+- `lines`: Number of paylines to check
+
+**Returns**: `GridPayoutDetails` struct containing the grid and payout details for each line
+
+**Cost**: 20,000 opcodes (uses OpUp)
+
+##### `participate(vote_k: Bytes32, sel_k: Bytes32, vote_fst: UInt64, vote_lst: UInt64, vote_kd: UInt64, sp_key: Bytes64) -> None`
+Registers participation keys for consensus participation.
+
+**Parameters**:
+- `vote_k`: 32-byte voting key
+- `sel_k`: 32-byte selection key
+- `vote_fst`: First voting round
+- `vote_lst`: Last voting round
+- `vote_kd`: Vote key dilution
+- `sp_key`: 64-byte state proof key
+
+**Note**: Requires payment of minimum transaction fee to prevent draining
+
 ### ReelManager
 
 Manages the slot machine reels and provides methods to access reel data.
@@ -254,6 +312,27 @@ Allows the owner to withdraw funds from the contract.
 ##### `owner_deposit(amount: UInt64)`
 Allows the owner to deposit funds directly.
 
+##### `sync_balance() -> UInt64`
+Synchronizes the contract balance with the actual account balance.
+
+**Returns**: The synchronized available balance
+
+**Note**: This method can only be called when locked balance is zero
+
+##### `get_balances() -> BankBalances`
+Returns the current balance state of the contract.
+
+**Returns**: `BankBalances` struct containing available, total, and locked balances
+
+##### `get_balance_available() -> UInt64`
+Returns the available balance for immediate use.
+
+##### `get_balance_locked() -> UInt64`
+Returns the balance currently locked for potential payouts.
+
+##### `get_balance_total() -> UInt64`
+Returns the total balance in the contract.
+
 #### Balance Tracking
 
 The BankManager maintains three balance types:
@@ -284,6 +363,21 @@ Deposits funds and mints shares based on the current exchange rate.
 
 ##### `withdraw(amount: UInt256) -> UInt64`
 Burns shares and returns the corresponding asset amount.
+
+##### `get_max_withdrawable_amount(who: Address) -> UInt256`
+Calculates the maximum amount that can be withdrawn by a user based on available balance ratios.
+
+**Parameters**:
+- `who`: The address to check the maximum withdrawable amount for
+
+**Returns**: Maximum amount that can be withdrawn in shares
+
+**Note**: The actual withdrawable amount is limited by the ratio of available to locked balances in the yield bearing source
+
+##### `deposit_cost() -> UInt64`
+Returns the cost required for depositing funds (box storage cost for new users).
+
+**Returns**: Deposit cost in microAlgos (28,500 for new users, 0 for existing users)
 
 ##### `set_yield_bearing_source(app_id: UInt64)`
 Sets the slot machine contract as the yield source.
@@ -321,6 +415,86 @@ The token implements a share-based yield system:
 4. Profits from the slot machine increase the underlying asset value
 5. Users can withdraw their proportional share of the total assets
 
+
+### MachineRegistry
+
+A registry contract for managing multiple slot machines in a distributed gaming network.
+
+#### Key Features
+- Registration and tracking of multiple slot machines
+- Balance synchronization across machines
+- Machine validation using hash verification
+- Centralized machine management for operators
+
+#### Methods
+
+##### `bootstrap()`
+Initializes the machine registry contract.
+
+**Access**: Owner only
+
+##### `register_machine(machine_id: UInt64) -> None`
+Registers a new slot machine in the registry.
+
+**Parameters**:
+- `machine_id`: The application ID of the slot machine to register
+
+**Access**: Owner only
+**Cost**: 30,900 microAlgos
+
+##### `delete_machine(machine_id: UInt64) -> None`
+Removes a slot machine from the registry.
+
+**Parameters**:
+- `machine_id`: The application ID of the slot machine to remove
+
+**Access**: Owner only
+
+##### `sync_machine(machine_id: UInt64) -> None`
+Synchronizes the balance and hash information for a registered machine.
+
+**Parameters**:
+- `machine_id`: The application ID of the slot machine to sync
+
+##### `get_machine(machine_id: UInt64) -> Machine`
+Retrieves information about a registered machine.
+
+**Parameters**:
+- `machine_id`: The application ID of the slot machine
+
+**Returns**: `Machine` struct containing machine details
+
+##### `get_machine_count() -> UInt64`
+Returns the total number of registered machines.
+
+##### `get_machine_total_amount() -> UInt64`
+Returns the total balance across all registered machines.
+
+#### Events
+
+- **MachineRegistered**: Emitted when a new machine is registered
+- **MachineDeleted**: Emitted when a machine is removed
+- **MachineSynced**: Emitted when a machine is synchronized
+
+### Beacon
+
+A simple beacon contract used for testing and production environments, particularly useful for group resource sharing.
+
+#### Key Features
+- Lightweight contract for testing
+- Upgradeable and deletable
+- Touchable interface for basic interactions
+
+#### Methods
+
+##### `touch() -> None`
+Basic touch method for contract interaction.
+
+##### `post_update() -> None`
+Post-upgrade method for version management.
+
+##### `nop() -> None`
+No-operation method for testing purposes.
 ## Events
 
 The smart contracts emit various events to track important state changes and user interactions. These events provide transparency, enable real-time monitoring, and support analytics and auditing.
@@ -329,6 +503,13 @@ The smart contracts emit various events to track important state changes and use
 - **BetPlaced**: Emitted when a new bet is placed
 - **BetClaimed**: Emitted when a bet is claimed and payout calculated
 - **arc200_Transfer**: Standard token transfer events for the yield token
+- **BalancesUpdated**: Emitted when bank balances change
+- **YBTDeposit**: Emitted when funds are deposited into the yield token
+- **YBTWithdraw**: Emitted when funds are withdrawn from the yield token
+- **Participated**: Emitted when participation keys are registered
+- **MachineRegistered**: Emitted when a machine is registered in the registry
+- **MachineDeleted**: Emitted when a machine is removed from the registry
+- **MachineSynced**: Emitted when a machine is synchronized
 
 For comprehensive event documentation including monitoring, analytics, and integration examples, see **[Events Documentation](events.md)**.
 
@@ -342,6 +523,12 @@ The system uses several key data structures including:
 - **PaylineMatch**: Results of payline matching against grids
 - **Bet**: Individual bet records with metadata
 - **Event Structures**: BetPlaced and BetClaimed events for tracking
+- **GridPayout**: Grid and total payout information
+- **GridPayoutDetails**: Detailed payout breakdown for each payline
+- **Machine**: Machine registry information including ID, hash, and balance
+- **YBTDeposit/YBTWithdraw**: Yield token deposit and withdrawal event data
+- **PartKeyInfo**: Participation key information for consensus
+- **BalancesUpdated**: Bank balance change event data
 
 ## Payout System
 
@@ -403,6 +590,8 @@ Each contract has specific bootstrap costs:
 - **BankManager**: ~17,700 microAlgos
 - **Ownable**: ~17,300 microAlgos
 - **YieldBearingToken**: 100,000 microAlgos
+- **MachineRegistry**: Minimum balance
+- **Beacon**: Minimum balance
 
 ### Box Storage
 
@@ -412,6 +601,8 @@ The system uses Algorand boxes for persistent storage:
 - Bet records and keys
 - Reel data and payline configurations
 - Token balances and metadata
+- Machine registry data and balances
+- Participation key information
 
 ## Usage Examples
 

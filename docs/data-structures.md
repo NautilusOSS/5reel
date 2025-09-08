@@ -108,6 +108,167 @@ class BetClaimed(arc4.Struct):
 **Fields**: All fields from `Bet` plus:
 - `payout`: Amount won in atomic units
 
+
+### BalancesUpdated
+```python
+class BalancesUpdated(arc4.Struct):
+    balance_available: arc4.UInt64
+    balance_total: arc4.UInt64
+    balance_locked: arc4.UInt64
+```
+
+**Description**: Event emitted when bank balances are updated.
+
+**Fields**:
+- `balance_available`: Current available balance
+- `balance_total`: Current total balance
+- `balance_locked`: Current locked balance
+
+### YBTDeposit
+```python
+class YBTDeposit(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+```
+
+**Description**: Event emitted when funds are deposited into the yield-bearing token.
+
+**Fields**:
+- `amount`: Amount deposited in atomic units
+- `shares`: Number of shares minted
+- `new_shares`: Total shares after deposit
+
+### YBTWithdraw
+```python
+class YBTWithdraw(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+```
+
+**Description**: Event emitted when funds are withdrawn from the yield-bearing token.
+
+**Fields**:
+- `amount`: Amount withdrawn in atomic units
+- `shares`: Number of shares burned
+- `new_shares`: Total shares after withdrawal
+
+### Participated
+```python
+class Participated(arc4.Struct):
+    who: arc4.Address
+    partkey: PartKeyInfo
+```
+
+**Description**: Event emitted when participation keys are registered.
+
+**Fields**:
+- `who`: Address that registered the participation keys
+- `partkey`: Participation key information
+
+### MachineRegistered
+```python
+class MachineRegistered(arc4.Struct):
+    machine_id: arc4.UInt64
+```
+
+**Description**: Event emitted when a machine is registered in the registry.
+
+**Fields**:
+- `machine_id`: Application ID of the registered machine
+
+### MachineDeleted
+```python
+class MachineDeleted(arc4.Struct):
+    machine_id: arc4.UInt64
+```
+
+**Description**: Event emitted when a machine is removed from the registry.
+
+**Fields**:
+- `machine_id`: Application ID of the removed machine
+
+### MachineSynced
+```python
+class MachineSynced(arc4.Struct):
+    machine_id: arc4.UInt64
+```
+
+**Description**: Event emitted when a machine is synchronized in the registry.
+
+**Fields**:
+- `machine_id`: Application ID of the synchronized machine
+
+## Registry Data Structures
+
+### Machine
+```python
+class Machine(arc4.Struct):
+    machine_id: arc4.UInt64
+    machine_hash: Bytes32
+    machine_balance: arc4.UInt64
+    updated_at: arc4.UInt64
+```
+
+**Description**: Represents a slot machine in the registry.
+
+**Fields**:
+- `machine_id`: Application ID of the slot machine
+- `machine_hash`: Hash of the machine configuration for validation
+- `machine_balance`: Current balance of the machine
+- `updated_at`: Timestamp of last update
+
+### PartKeyInfo
+```python
+class PartKeyInfo(arc4.Struct):
+    address: arc4.Address
+    vote_key: Bytes32
+    selection_key: Bytes32
+    vote_first: arc4.UInt64
+    vote_last: arc4.UInt64
+    vote_key_dilution: arc4.UInt64
+    state_proof_key: Bytes64
+```
+
+**Description**: Contains participation key information for consensus.
+
+**Fields**:
+- `address`: Address of the participant
+- `vote_key`: 32-byte voting key
+- `selection_key`: 32-byte selection key
+- `vote_first`: First voting round
+- `vote_last`: Last voting round
+- `vote_key_dilution`: Vote key dilution factor
+- `state_proof_key`: 64-byte state proof key
+
+## Payout Data Structures
+
+### GridPayout
+```python
+class GridPayout(arc4.Struct):
+    grid: Bytes15
+    payout: arc4.UInt64
+```
+
+**Description**: Contains grid and total payout information.
+
+**Fields**:
+- `grid`: 15-byte grid representation (5x3 slot machine grid)
+- `payout`: Total payout amount for the grid
+
+### GridPayoutDetails
+```python
+class GridPayoutDetails(arc4.Struct):
+    grid: Bytes15
+    payout: PayoutDetails
+```
+
+**Description**: Contains grid and detailed payout breakdown.
+
+**Fields**:
+- `grid`: 15-byte grid representation
+- `payout`: Array of 20 payout amounts (one for each payline)
 ## Usage Examples
 
 ### Creating a Bet Structure
@@ -134,6 +295,39 @@ else:
 ```
 
 ### Payline Matching
+
+### Working with Machine Registry
+```python
+# Example machine registration
+machine = Machine(
+    machine_id=app_id,
+    machine_hash=sha256(reel_data),
+    machine_balance=available_balance,
+    updated_at=current_timestamp
+)
+```
+
+### Processing Grid Payouts
+```python
+# Example grid payout calculation
+grid_payout = get_block_seed_bet_key_grid_total_payout(
+    seed=block_seed,
+    bet_key=bet_key,
+    bet_amount=1000000,
+    lines=10
+)
+total_winnings = grid_payout.payout
+```
+
+### Handling Yield Token Events
+```python
+# Example deposit event handling
+deposit_event = YBTDeposit(
+    amount=deposit_amount,
+    shares=minted_shares,
+    new_shares=total_shares_after_deposit
+)
+```
 ```python
 # Example payline match processing
 match = match_payline(grid, payline_index)
@@ -159,6 +353,8 @@ if match.count >= 3:
 - `arc4.Bytes5` → `bytes5`
 - `arc4.Bytes8` → `bytes8`
 - `arc4.UInt256` → `uint256`
+- `Bytes64` → `bytes64` (64-byte array)
+- `PayoutDetails` → `StaticArray[UInt64, 20]` (20 payout amounts)
 
 ### Static Arrays
 - `StaticArray[UInt64, 5]` → Array of 5 uint64 values
@@ -173,6 +369,8 @@ Most data structures are stored in Algorand boxes for efficient access and persi
 - **SpinParams**: Stored in a single box for the SpinManager
 - **Bet Records**: Stored in individual boxes keyed by bet_key
 - **Reel Data**: Stored in boxes for efficient reel access
+- **Machine Registry**: Stored in boxes with machine ID as key
+- **Participation Keys**: Stored temporarily for event emission
 
 ### Memory Layout
 - Structs are packed efficiently using ARC4's binary serialization

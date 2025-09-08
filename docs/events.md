@@ -174,6 +174,172 @@ class arc200_Transfer(arc4.Struct):
 - `from: 0x0000...` indicates a mint operation
 - `to: 0x0000...` indicates a burn operation
 
+### YBTDeposit
+
+Emitted when funds are deposited into the yield-bearing token contract.
+
+**Event Structure**:
+```python
+class YBTDeposit(arc4.Struct):
+    amount: arc4.UInt64        # Amount deposited in atomic units
+    shares: arc4.UInt256       # Number of shares minted
+    new_shares: arc4.UInt256   # Total shares after deposit
+```
+
+**Emitted By**: `YieldBearingToken.deposit()`
+
+**When Emitted**:
+- After deposit amount is validated
+- After funds are forwarded to yield source
+- After shares are minted
+- After user balance is updated
+
+**Use Cases**:
+- Track yield token deposits and share issuance
+- Monitor token supply changes
+- Calculate deposit-to-share ratios
+- Provide deposit history for users
+- Audit yield token mechanics
+
+**Example Event Data**:
+```json
+{
+  "amount": 1000000,
+  "shares": "950000000000000000",
+  "new_shares": "5000000000000000000"
+}
+```
+
+### YBTWithdraw
+
+Emitted when funds are withdrawn from the yield-bearing token contract.
+
+**Event Structure**:
+```python
+class YBTWithdraw(arc4.Struct):
+    amount: arc4.UInt64        # Amount withdrawn in atomic units
+    shares: arc4.UInt256       # Number of shares burned
+    new_shares: arc4.UInt256   # Total shares after withdrawal
+```
+
+**Emitted By**: `YieldBearingToken.withdraw()`
+
+**When Emitted**:
+- After withdrawal amount is validated
+- After shares are burned
+- After funds are transferred to user
+- After user balance is updated
+
+**Use Cases**:
+- Track yield token withdrawals and share burning
+- Monitor token supply changes
+- Calculate withdrawal-to-share ratios
+- Provide withdrawal history for users
+- Audit yield token mechanics
+
+**Example Event Data**:
+```json
+{
+  "amount": 1050000,
+  "shares": "1000000000000000000",
+  "new_shares": "4000000000000000000"
+}
+```
+
+### Participated
+
+Emitted when participation keys are registered for consensus participation.
+
+**Event Structure**:
+```python
+class Participated(arc4.Struct):
+    who: arc4.Address          # Address registering participation keys
+    partkey: PartKeyInfo       # Participation key information
+```
+
+**Emitted By**: `SlotMachine.participate()`
+
+**When Emitted**:
+- After participation fee is paid
+- After participation keys are validated
+- Before key registration transaction is submitted
+
+**Use Cases**:
+- Track consensus participation
+- Monitor validator registrations
+- Audit participation key usage
+- Provide participation history
+
+### MachineRegistered
+
+Emitted when a new slot machine is registered in the machine registry.
+
+**Event Structure**:
+```python
+class MachineRegistered(arc4.Struct):
+    machine_id: arc4.UInt64    # Application ID of the registered machine
+```
+
+**Emitted By**: `MachineRegistry.register_machine()`
+
+**When Emitted**:
+- After machine validation passes
+- After machine hash is verified
+- After machine balance is recorded
+- After machine is added to registry
+
+**Use Cases**:
+- Track machine network growth
+- Monitor registry changes
+- Audit machine registrations
+- Provide machine discovery
+
+### MachineDeleted
+
+Emitted when a slot machine is removed from the machine registry.
+
+**Event Structure**:
+```python
+class MachineDeleted(arc4.Struct):
+    machine_id: arc4.UInt64    # Application ID of the removed machine
+```
+
+**Emitted By**: `MachineRegistry.delete_machine()`
+
+**When Emitted**:
+- After machine existence is verified
+- After machine is removed from registry
+- After registry counters are updated
+
+**Use Cases**:
+- Track machine network changes
+- Monitor registry cleanup
+- Audit machine removals
+- Update machine discovery systems
+
+### MachineSynced
+
+Emitted when a slot machine is synchronized in the machine registry.
+
+**Event Structure**:
+```python
+class MachineSynced(arc4.Struct):
+    machine_id: arc4.UInt64    # Application ID of the synchronized machine
+```
+
+**Emitted By**: `MachineRegistry.sync_machine()`
+
+**When Emitted**:
+- After machine balance is updated
+- After machine hash is refreshed
+- After registry totals are recalculated
+
+**Use Cases**:
+- Track machine balance updates
+- Monitor registry synchronization
+- Audit machine state changes
+- Maintain accurate registry data
+
 ## Event Monitoring
 
 ### Frontend Integration
@@ -438,6 +604,35 @@ class BalancesUpdated(arc4.Struct):
     balance_total: arc4.UInt64
     balance_locked: arc4.UInt64
 
+# YBTDeposit Event
+class YBTDeposit(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+
+# YBTWithdraw Event
+class YBTWithdraw(arc4.Struct):
+    amount: arc4.UInt64
+    shares: arc4.UInt256
+    new_shares: arc4.UInt256
+
+# Participated Event
+class Participated(arc4.Struct):
+    who: arc4.Address
+    partkey: PartKeyInfo
+
+# MachineRegistered Event
+class MachineRegistered(arc4.Struct):
+    machine_id: arc4.UInt64
+
+# MachineDeleted Event
+class MachineDeleted(arc4.Struct):
+    machine_id: arc4.UInt64
+
+# MachineSynced Event
+class MachineSynced(arc4.Struct):
+    machine_id: arc4.UInt64
+
 # ARC-200 Transfer Event
 class arc200_Transfer(arc4.Struct):
     from: arc4.Address
@@ -450,7 +645,7 @@ class arc200_Transfer(arc4.Struct):
 Events are automatically indexed by the Algorand blockchain and can be queried using:
 
 - **Application ID**: The specific contract that emitted the event
-- **Event Name**: The type of event (BetPlaced, BetClaimed, BalancesUpdated, arc200_Transfer)
+- **Event Name**: The type of event (BetPlaced, BetClaimed, BalancesUpdated, arc200_Transfer, YBTDeposit, YBTWithdraw, Participated, MachineRegistered, MachineDeleted, MachineSynced)
 - **Round Number**: The block round when the event occurred
 - **Transaction ID**: The specific transaction that triggered the event
 

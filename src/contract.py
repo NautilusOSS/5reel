@@ -2480,6 +2480,8 @@ class YieldBearingToken(ARC200Token, Ownable, Upgradeable):
                 amount=arc4.UInt64(amount.native),
                 shares=arc4.UInt256(shares_to_burn),
                 new_shares=arc4.UInt256(new_shares),
+            )
+        )
         return withdraw_amount
 
     @subroutine
